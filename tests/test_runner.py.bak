@@ -97,7 +97,7 @@ def test_workflow_timeout_alarm(
 ):
     """Test SIGALRM setup and teardown."""
     # Mock config attrs to prevent step failures
-    mock_config.create_dump_run_cmd = ['create-dump', 'batch', 'run']
+    mock_config.code_dump_run_cmd = ['create-dump', 'batch', 'run']
     mock_config.backup_script = Mock(exists=False)  # Skip backup
     mock_config.clean_script = Mock(exists=False)  # Skip clean
     runner = WorkflowRunner(mock_config)

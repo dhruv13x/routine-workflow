@@ -1,6 +1,6 @@
 # routine_workflow/steps/step1.py
 
-"""Step 1: Delete old code dumps via external create-dump tool."""
+"""Step 1: Delete old code dumps via external code-dump tool."""
 
 from __future__ import annotations
 from typing import TYPE_CHECKING
@@ -13,17 +13,17 @@ from ..utils import cmd_exists, run_command
 
 def delete_old_dumps(runner: WorkflowRunner) -> None:
     runner.logger.info('=' * 60)
-    runner.logger.info('STEP 1: Delete old code dumps (via create-dump tool)')
+    runner.logger.info('STEP 1: Delete old code dumps (via code-dump tool)')
     runner.logger.info('=' * 60)
 
     config = runner.config
 
-    if not cmd_exists('create-dump'):
-        runner.logger.warning('create-dump not found - skipping cleanup')
+    if not cmd_exists('code-dump'):
+        runner.logger.warning('code-dump not found - skipping cleanup')
         return
 
     # Build flags dynamically
-    cmd = ['create-dump', 'batch', 'clean', str(config.project_root)]  # root as str arg
+    cmd = ['code-dump', 'batch', 'clean', str(config.project_root)]  # root as str arg
     if config.dry_run:
         cmd.append('-d')  # Tool-native dry preview
     else:

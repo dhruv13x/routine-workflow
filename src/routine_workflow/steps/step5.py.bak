@@ -20,9 +20,9 @@ def generate_dumps(runner: WorkflowRunner) -> None:
         runner.logger.warning('create-dump not found - skipping generation')
         return
 
-    # Assume config.create_dump_run_cmd is base like ['create-dump', 'batch', 'run', '--dirs', '.,packages,services']
+    # Assume config.code_dump_run_cmd is base like ['create-dump', 'batch', 'run', '--dirs', '.,packages,services']
     # Override/extend with dynamic flags; fallback if not set
-    cmd = config.create_dump_run_cmd or ['create-dump', 'batch', 'run', '--dirs', '., packages, packages/platform_core, packages/telethon_adapter_kit, services, services/forwarder_bot']
+    cmd = config.code_dump_run_cmd or ['create-dump', 'batch', 'run', '--dirs', '., packages, packages/platform_core, packages/telethon_adapter_kit, services, services/forwarder_bot']
     if not config.dry_run:
         cmd.append('-nd')  # Force real run (default is dry for 'run' subcommand)
     if config.auto_yes:

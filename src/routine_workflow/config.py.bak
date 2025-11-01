@@ -33,11 +33,11 @@ class WorkflowConfig:
 
     clean_script: Path
     backup_script: Path
-    create_dump_script: Path  # Legacy; for bash fallback if needed
+    code_dump_script: Path  # Legacy; for bash fallback if needed
 
     # Code-dump cmds (base; dynamic flags appended in steps)
-    create_dump_clean_cmd: List[str] = field(default_factory=_default_clean_cmd)
-    create_dump_run_cmd: List[str] = field(default_factory=_default_run_cmd)
+    code_dump_clean_cmd: List[str] = field(default_factory=_default_clean_cmd)
+    code_dump_run_cmd: List[str] = field(default_factory=_default_run_cmd)
 
     fail_on_backup: bool = False
     auto_yes: bool = False
@@ -67,8 +67,8 @@ class WorkflowConfig:
         workers = args.workers if getattr(args, 'workers', None) is not None else min(8, os.cpu_count() or 4)
 
         # Handle CLI override for run cmd only
-        create_dump_run_cmd = args.create_dump_run_cmd if args.create_dump_run_cmd else _default_run_cmd()
-        create_dump_clean_cmd = _default_clean_cmd()  # No override; use default
+        code_dump_run_cmd = args.code_dump_run_cmd if args.code_dump_run_cmd else _default_run_cmd()
+        code_dump_clean_cmd = _default_clean_cmd()  # No override; use default
 
         return cls(
             project_root=args.project_root.resolve(),
@@ -77,9 +77,9 @@ class WorkflowConfig:
             lock_dir=args.lock_dir,
             clean_script=args.clean_script,
             backup_script=args.backup_script,
-            create_dump_script=getattr(args, 'create_dump_script', Path('/sdcard/tools/run_create_dump.sh')),  # Fallback to env default
-            create_dump_clean_cmd=create_dump_clean_cmd,
-            create_dump_run_cmd=create_dump_run_cmd,
+            code_dump_script=getattr(args, 'code_dump_script', Path('/sdcard/tools/run_code_dump.sh')),  # Fallback to env default
+            code_dump_clean_cmd=code_dump_clean_cmd,
+            code_dump_run_cmd=code_dump_run_cmd,
             fail_on_backup=args.fail_on_backup,
             auto_yes=args.yes,
             dry_run=args.dry_run,
