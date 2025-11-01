@@ -1,0 +1,23 @@
+# pyproject.toml
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "routine-workflow"
+version = "3.0.0"
+description = "Automated routine workflow runner"
+authors = [{ name = "Dhruv" }]
+dependencies = []  # Add actual dependencies if needed
+requires-python = ">=3.9"
+
+[project.scripts]
+routine = "routine_workflow.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/routine_workflow"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=src/routine_workflow --cov-report=term-missing --cov-fail-under=85"
