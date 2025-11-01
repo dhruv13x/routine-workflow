@@ -29,7 +29,7 @@ def test_setup_logging(temp_project_root: Path):
         lock_dir=temp_project_root / "lock",
         clean_script=temp_project_root / "clean.py",
         backup_script=temp_project_root / "backup.py",
-        create_dump_script=temp_project_root / "dump.sh",
+        code_dump_script=temp_project_root / "dump.sh",
         dry_run=False,
         max_workers=4,
         workflow_timeout=0,

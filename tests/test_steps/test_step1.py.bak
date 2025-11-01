@@ -16,18 +16,18 @@ def test_delete_old_dumps_header(mock_runner: Mock):
     delete_old_dumps(mock_runner)
 
     mock_runner.logger.info.assert_any_call('=' * 60)
-    mock_runner.logger.info.assert_any_call('STEP 1: Delete old code dumps (via create-dump tool)')
+    mock_runner.logger.info.assert_any_call('STEP 1: Delete old code dumps (via code-dump tool)')
 
 
 @patch('routine_workflow.steps.step1.cmd_exists')
 def test_delete_old_dumps_no_tool(mock_exists, mock_runner: Mock):
-    """Test skip if create-dump not found."""
+    """Test skip if code-dump not found."""
     mock_runner.config.dry_run = False
     mock_exists.return_value = False
 
     delete_old_dumps(mock_runner)
 
-    mock_runner.logger.warning.assert_called_once_with('create-dump not found - skipping cleanup')
+    mock_runner.logger.warning.assert_called_once_with('code-dump not found - skipping cleanup')
 
 
 @patch('routine_workflow.steps.step1.run_command')
@@ -43,7 +43,7 @@ def test_delete_old_dumps_dry_run(mock_exists, mock_run, mock_runner: Mock):
     delete_old_dumps(mock_runner)
 
     mock_run.assert_called_once_with(
-        mock_runner, 'Clean old code dumps', ['create-dump', 'batch', 'clean', '/tmp/project', '-d'],
+        mock_runner, 'Clean old code dumps', ['code-dump', 'batch', 'clean', '/tmp/project', '-d'],
         cwd=mock_runner.config.project_root, timeout=60.0, fatal=False
     )
     mock_runner.logger.info.assert_any_call('Code-dump cleanup completed successfully')  # Post-tool success
@@ -62,7 +62,7 @@ def test_delete_old_dumps_real_run(mock_exists, mock_run, mock_runner: Mock):
     delete_old_dumps(mock_runner)
 
     mock_run.assert_called_once_with(
-        mock_runner, 'Clean old code dumps', ['create-dump', 'batch', 'clean', '/tmp/project', '-nd', '-y'],
+        mock_runner, 'Clean old code dumps', ['code-dump', 'batch', 'clean', '/tmp/project', '-nd', '-y'],
         cwd=mock_runner.config.project_root, timeout=60.0, fatal=False
     )
     mock_runner.logger.info.assert_called_with('Code-dump cleanup completed successfully')
@@ -81,7 +81,7 @@ def test_delete_old_dumps_failure(mock_exists, mock_run, mock_runner: Mock):
     delete_old_dumps(mock_runner)
 
     mock_run.assert_called_once_with(
-        mock_runner, 'Clean old code dumps', ['create-dump', 'batch', 'clean', '/tmp/project', '-nd'],
+        mock_runner, 'Clean old code dumps', ['code-dump', 'batch', 'clean', '/tmp/project', '-nd'],
         cwd=mock_runner.config.project_root, timeout=60.0, fatal=False
     )
     mock_runner.logger.warning.assert_called_with('Code-dump cleanup failed or skipped')

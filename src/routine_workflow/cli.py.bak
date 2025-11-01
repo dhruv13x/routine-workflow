@@ -30,7 +30,7 @@ def parse_arguments() -> argparse.Namespace:
 
     parser.add_argument('--clean-script', type=Path, default=Path(os.getenv('CLEAN_SCRIPT', '/sdcard/tools/clean.py')))
     parser.add_argument('--backup-script', type=Path, default=Path(os.getenv('BACKUP_SCRIPT', '/sdcard/tools/create_backup.py')))
-    parser.add_argument('--create-dump-script', type=Path, default=Path(os.getenv('CODE_DUMP_SCRIPT', '/sdcard/tools/run_create_dump.sh')))  # Renamed for clarity; unused in binary mode
+    parser.add_argument('--create-dump-script', type=Path, default=Path(os.getenv('CODE_DUMP_SCRIPT', '/sdcard/tools/run_code_dump.sh')))  # Renamed for clarity; unused in binary mode
 
     parser.add_argument('--fail-on-backup', action='store_true', default=os.getenv('FAIL_ON_BACKUP', '0') == '1')
     parser.add_argument('--yes', action='store_true', help='Auto-confirm prompts')

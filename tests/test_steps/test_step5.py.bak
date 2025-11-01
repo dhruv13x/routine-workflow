@@ -24,7 +24,7 @@ def test_generate_dumps_no_tool(mock_runner: Mock):
 def test_generate_dumps_dry_run(mock_exists, mock_runner: Mock):
     """Test dry-run invokes tool with default dry estimation."""
     mock_runner.config.dry_run = True
-    mock_runner.config.create_dump_run_cmd = ['create-dump', 'batch', 'run']  # Set to avoid attr error
+    mock_runner.config.code_dump_run_cmd = ['create-dump', 'batch', 'run']  # Set to avoid attr error
     mock_exists.return_value = True
 
     generate_dumps(mock_runner)
@@ -39,7 +39,7 @@ def test_generate_dumps_success(mock_exists, mock_run, mock_runner: Mock):
     mock_runner.config.dry_run = False
     mock_runner.config.auto_yes = True
     mock_runner.config.project_root = Path('/tmp/project')
-    mock_runner.config.create_dump_run_cmd = ['create-dump', 'batch', 'run']
+    mock_runner.config.code_dump_run_cmd = ['create-dump', 'batch', 'run']
     mock_exists.return_value = True
     mock_run.return_value = True
 
@@ -59,7 +59,7 @@ def test_generate_dumps_failure(mock_exists, mock_run, mock_runner: Mock):
     mock_runner.config.dry_run = False
     mock_runner.config.auto_yes = False
     mock_runner.config.project_root = Path('/tmp/project')
-    mock_runner.config.create_dump_run_cmd = ['create-dump', 'batch', 'run']
+    mock_runner.config.code_dump_run_cmd = ['create-dump', 'batch', 'run']
     mock_exists.return_value = True
     mock_run.return_value = False
 
@@ -75,11 +75,11 @@ def test_generate_dumps_failure(mock_exists, mock_run, mock_runner: Mock):
 @patch('routine_workflow.steps.step5.run_command')
 @patch('routine_workflow.steps.step5.cmd_exists')
 def test_generate_dumps_cmd_fallback(mock_exists, mock_run, mock_runner: Mock):
-    """Test fallback cmd if create_dump_run_cmd not set."""
+    """Test fallback cmd if code_dump_run_cmd not set."""
     mock_runner.config.dry_run = False
     mock_runner.config.auto_yes = False
     mock_runner.config.project_root = Path('/tmp/project')
-    mock_runner.config.create_dump_run_cmd = None  # Trigger fallback
+    mock_runner.config.code_dump_run_cmd = None  # Trigger fallback
     mock_exists.return_value = True
     mock_run.return_value = True
 
@@ -98,7 +98,7 @@ def test_generate_dumps_no_yes(mock_exists, mock_run, mock_runner: Mock):
     mock_runner.config.dry_run = False
     mock_runner.config.auto_yes = False
     mock_runner.config.project_root = Path('/tmp/project')
-    mock_runner.config.create_dump_run_cmd = ['create-dump', 'batch', 'run']
+    mock_runner.config.code_dump_run_cmd = ['create-dump', 'batch', 'run']
     mock_exists.return_value = True
     mock_run.return_value = True
 
@@ -113,7 +113,7 @@ def test_generate_dumps_no_yes(mock_exists, mock_run, mock_runner: Mock):
 def test_generate_dumps_fallback_dry_run(mock_exists, mock_runner: Mock):
     """Test fallback with dry-run."""
     mock_runner.config.dry_run = True
-    mock_runner.config.create_dump_run_cmd = None
+    mock_runner.config.code_dump_run_cmd = None
     mock_exists.return_value = True
 
     generate_dumps(mock_runner)
@@ -128,7 +128,7 @@ def test_generate_dumps_fallback_failure(mock_exists, mock_run, mock_runner: Moc
     mock_runner.config.dry_run = False
     mock_runner.config.auto_yes = True
     mock_runner.config.project_root = Path('/tmp/project')
-    mock_runner.config.create_dump_run_cmd = None  # Trigger fallback
+    mock_runner.config.code_dump_run_cmd = None  # Trigger fallback
     mock_exists.return_value = True
     mock_run.return_value = False
 
