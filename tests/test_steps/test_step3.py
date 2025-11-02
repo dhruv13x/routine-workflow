@@ -6,7 +6,7 @@ from pathlib import Path
 
 from routine_workflow.steps.step3 import clean_caches
 from routine_workflow.runner import WorkflowRunner
-from routine_workflow.utils import run_command
+from routine_workflow.utils import run_command, cmd_exists
 
 
 def test_clean_caches_missing(mock_runner: Mock):
@@ -17,6 +17,19 @@ def test_clean_caches_missing(mock_runner: Mock):
     clean_caches(mock_runner)
 
     mock_runner.logger.info.assert_called_with('Script missing - skip')
+
+
+@patch('routine_workflow.steps.step3.cmd_exists')
+def test_clean_caches_no_python3(mock_cmd_exists, mock_runner: Mock):
+    """Test skips if no python3."""
+    mock_runner.config.clean_script = Mock()
+    mock_runner.config.clean_script.exists.return_value = True
+    mock_cmd_exists.return_value = False
+
+    clean_caches(mock_runner)
+
+    assert mock_runner.logger.warning.called
+    mock_runner.logger.warning.assert_called_with('python3 not found - skipping cleanup')
 
 
 @patch('routine_workflow.steps.step3.run_command')
@@ -61,7 +74,7 @@ def test_clean_caches_dry_run(mock_run, mock_runner: Mock):
 
 @patch('routine_workflow.steps.step3.run_command')
 def test_clean_caches_auto_yes(mock_run, mock_runner: Mock):
-    """Test auto-yes uses -y flag."""
+    """Test auto-yes uses --yes flag."""
     mock_script = Mock()
     mock_script.exists.return_value = True
     mock_runner.config.clean_script = mock_script
@@ -73,7 +86,7 @@ def test_clean_caches_auto_yes(mock_run, mock_runner: Mock):
     clean_caches(mock_runner)
 
     mock_run.assert_called_once_with(
-        mock_runner, 'Clean caches', ['python3', str(mock_runner.config.clean_script), str(mock_runner.config.project_root), '--allow-root', '-y'],
+        mock_runner, 'Clean caches', ['python3', str(mock_runner.config.clean_script), str(mock_runner.config.project_root), '--allow-root', '--yes'],
         cwd=mock_runner.config.project_root, timeout=300.0, fatal=False
     )
 

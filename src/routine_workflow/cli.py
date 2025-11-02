@@ -39,6 +39,10 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument('--workflow-timeout', type=int, default=int(os.getenv('WORKFLOW_TIMEOUT', '0')), help='Overall timeout in seconds (0 disable)')
     parser.add_argument('--exclude-patterns', nargs='*', default=None, help='Optional override exclude patterns')
     parser.add_argument('--create-dump-run-cmd', nargs=argparse.REMAINDER, default=None, help='Override create-dump run command (base args before dynamic flags)')
+    parser.add_argument(
+    '--steps', nargs='+', default=None,
+    help='Run specific steps only (e.g., "step2" or "step2,step3"). Defaults to all.'
+)
 
     return parser.parse_args()
 
@@ -46,5 +50,5 @@ def parse_arguments() -> argparse.Namespace:
 def main() -> int:
     args = parse_arguments()
     cfg = WorkflowConfig.from_args(args)
-    runner = WorkflowRunner(cfg)
+    runner = WorkflowRunner(cfg, steps=args.steps)  # Pass to runner
     return runner.run()

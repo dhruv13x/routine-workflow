@@ -21,13 +21,17 @@ def clean_caches(runner: WorkflowRunner) -> None:
         runner.logger.info('Script missing - skip')
         return
 
+    if not cmd_exists('python3'):
+        runner.logger.warning('python3 not found - skipping cleanup')
+        return
+
     # Build flags dynamically
     cmd = ['python3', str(config.clean_script), str(config.project_root)]  # root as first arg (per parser)
     cmd.append('--allow-root')  # Always for privileged access
     if config.dry_run:
         cmd.append('--preview')  # Tool-native dry mode
     if config.auto_yes:
-        cmd.append('-y')  # Skip confirmations
+        cmd.append('--yes')  # Skip confirmations (non-interactive)
 
     description = 'Clean caches'
 

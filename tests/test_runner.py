@@ -1,3 +1,20 @@
+import pytest
+import logging
+from unittest.mock import patch, Mock, MagicMock
+from pathlib import Path
+
+from routine_workflow.runner import WorkflowRunner
+from routine_workflow.config import WorkflowConfig
+from routine_workflow.steps import (
+    delete_old_dumps,
+    reformat_code,
+    clean_caches,
+    backup_project,
+    generate_dumps,
+)  # Import for patching
+
+
+
 """Tests for runner orchestration."""
 
 import signal
@@ -208,3 +225,90 @@ def test_run_chdir(
     mock_chdir.assert_called_once_with(mock_config.project_root)
     assert result == 0
 
+
+
+
+
+@pytest.fixture
+def minimal_config(tmp_path: Path):
+    """Minimal config for isolated tests."""
+    return WorkflowConfig(
+        project_root=tmp_path,
+        log_dir=tmp_path / "logs",
+        log_file=tmp_path / "routine_test.log",  # Valid Path to avoid None error
+        lock_dir=tmp_path / "lock",
+        clean_script=tmp_path / "clean.py",
+        backup_script=tmp_path / "backup.py",
+        create_dump_script=tmp_path / "dump.sh",
+        fail_on_backup=False,
+        auto_yes=False,
+        dry_run=False,
+        max_workers=1,
+        workflow_timeout=0,
+        exclude_patterns=[],
+    )
+
+
+@patch("routine_workflow.runner.signal.alarm")
+@patch("routine_workflow.runner.generate_dumps")
+@patch("routine_workflow.runner.delete_old_dumps")
+@patch("routine_workflow.runner.clean_caches")
+@patch("routine_workflow.runner.reformat_code")
+@patch("routine_workflow.runner.backup_project")
+@patch("routine_workflow.runner.lock_context")
+def test_run_specific_steps(
+    mock_lock,
+    mock_backup,
+    mock_reformat,
+    mock_clean,
+    mock_delete,
+    mock_generate,
+    mock_alarm,
+    minimal_config: WorkflowConfig,
+    caplog: pytest.LogCaptureFixture,
+):
+    """Test selective steps: filter, warn skips, invoke only targeted funcs."""
+    # Setup mocks: steps return success; lock enters/exits cleanly
+    mock_lock.return_value.__enter__.return_value = None  # No-op lock
+    mock_delete.return_value = None
+    mock_reformat.return_value = None
+    mock_clean.return_value = None
+    mock_backup.return_value = True  # Success for gating
+    mock_generate.return_value = None
+    mock_alarm.return_value = None  # No-op timeout
+
+    # Enable caplog for INFO/WARNING
+    caplog.set_level(logging.INFO)
+
+    # Real runner with partial steps; enable propagation for caplog
+    runner = WorkflowRunner(minimal_config, steps=["step2", "step4"])
+    runner.logger.propagate = True  # Route named logger to root for capture
+    result = runner.run()
+
+    # Debug: Print captured count (remove post-validation)
+    print(f"Caplog records captured: {len(caplog.records)}")
+
+    # Assertions: filtering, warnings, invocations, outcome
+    assert result == 0
+
+    # Verify warning for skips (via caplog records; order-independent)
+    skip_warnings = [rec for rec in caplog.records if "Skipping steps:" in rec.message]
+    assert len(skip_warnings) == 1
+    expected_steps = {"step1", "step3", "step5"}
+    actual_steps = set(skip_warnings[0].message.split(": ")[1].strip().split(", "))
+    assert actual_steps == expected_steps
+
+    # Verify success log
+    success_logs = [rec for rec in caplog.records if "WORKFLOW SUCCESS" in rec.message]
+    assert len(success_logs) == 1
+
+    # Only targeted steps called (others not)
+    mock_reformat.assert_called_once_with(runner)  # step2
+    mock_backup.assert_called_once_with(runner)    # step4
+    mock_delete.assert_not_called()
+    mock_clean.assert_not_called()
+    mock_generate.assert_not_called()
+
+    # Lock acquired/released
+    mock_lock.assert_called_once()
+    mock_lock.return_value.__exit__.assert_called_once_with(None, None, None)
