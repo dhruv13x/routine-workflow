@@ -6,6 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import Mock, patch
 import pytest
+import shutil
+import glob
 
 # Fix for src layout: Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
@@ -100,3 +102,25 @@ def mock_args() -> Mock:
     args.workflow_timeout = 0  # int
     args.exclude_patterns = None  # Trigger default
     return args
+    
+
+@pytest.fixture(scope="module", autouse=True)
+def cleanup_artifacts(request):
+    """Auto-clean pytest artifacts post-module to prevent repo pollution."""
+    yield  # Run tests
+    # Sweep known leftovers
+    patterns = [
+        "test.sha256",
+        "test.md",
+        "script.py",
+        "*.pyc",  # Bytecode cruft
+        "__pycache__/**",  # Cache dirs
+    ]
+    for pattern in patterns:
+        for path in Path(".").glob(pattern):
+            if path.is_file():
+                path.unlink()
+                print(f"Cleaned artifact: {path}")
+            elif path.is_dir():
+                shutil.rmtree(path)
+                print(f"Cleaned dir: {path}")
