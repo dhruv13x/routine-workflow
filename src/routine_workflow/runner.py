@@ -16,8 +16,18 @@ from .steps import (
     clean_caches,
     backup_project,
     generate_dumps,
+    run_tests,  # Step 2.5
+    security_scan,  # Step 3.5
+    commit_hygiene,  # Step 6
+    dep_audit,  # Step 6.5
 )
 from .utils import setup_logging, setup_signal_handlers
+
+
+STEP_NAMES = {
+    "step1", "step2", "step2.5", "step3", "step3.5",
+    "step4", "step5", "step6", "step6.5"
+}
 
 
 class WorkflowRunner:
@@ -60,9 +70,13 @@ class WorkflowRunner:
                 all_steps: List[Tuple[str, callable]] = [
                     ("step1", delete_old_dumps),
                     ("step2", reformat_code),
+                    ("step2.5", run_tests),  # New: post-reformat validation
                     ("step3", clean_caches),
+                    ("step3.5", security_scan),  # New: post-clean vuln scan
                     ("step4", backup_project),
                     ("step5", generate_dumps),
+                    ("step6", commit_hygiene),  # New: post-dump git snapshot
+                    ("step6.5", dep_audit),  # New: post-git dep audit
                 ]
 
                 to_run = all_steps
@@ -76,6 +90,8 @@ class WorkflowRunner:
                     }
                     if skipped:
                         self.logger.warning(f"Skipping steps: {', '.join(skipped)}")
+                    if len(to_run) < len(self.steps):
+                        self.logger.warning("Some steps skipped due to invalid names")
                     if not to_run:
                         self.logger.warning("No valid steps specified; exiting early")
                         return 0
@@ -87,6 +103,8 @@ class WorkflowRunner:
                         backup_success = step_func(self)
                     else:
                         step_func(self)
+
+                self.logger.info(f"Workflow complete. Executed steps: {', '.join(n for n, _ in to_run)}")
 
                 if backup_success is not None and not backup_success and self.config.fail_on_backup:
                     self.logger.error("Backup failed; aborting workflow per config")

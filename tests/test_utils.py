@@ -1,3 +1,5 @@
+# tests/test_utils.py
+
 """Unit tests for utils.py."""
 
 import logging
@@ -13,15 +15,37 @@ from routine_workflow.utils import (
 from routine_workflow.config import WorkflowConfig
 from routine_workflow.lock import cleanup_and_exit
 
+
 import signal  # For signal tests
+import os
 
 
-def test_setup_logging(temp_project_root: Path):
-    """Test logging setup with rotation."""
+from unittest.mock import patch, Mock, MagicMock
+from pathlib import Path
+import pytest
+from logging import StreamHandler, Formatter
+
+from routine_workflow.utils import setup_logging, run_command
+from routine_workflow.config import WorkflowConfig
+
+
+@pytest.fixture(autouse=True)
+def clear_logger():
+    """Clear logger handlers before each test to avoid persistence issues."""
+    logger = logging.getLogger("routine_workflow")
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+    logger.handlers.clear()
+    yield
+    # No need to restore; fresh start each time
+
+
+def test_setup_logging(temp_project_root: Path, capsys):
+    """Test logging setup with rotation (Rich branch)."""
     # Use real config for accurate testing
     log_dir = temp_project_root / "logs"
     log_dir.mkdir(exist_ok=True)
-    log_file = log_dir / f"routine_test.log"
+    log_file = log_dir / "routine_test.log"
     config = WorkflowConfig(
         project_root=temp_project_root,
         log_dir=log_dir,
@@ -36,21 +60,109 @@ def test_setup_logging(temp_project_root: Path):
         exclude_patterns=[]
     )
 
-    logger = setup_logging(config)
+    with patch('routine_workflow.utils._has_rich', return_value=True):
+        with patch('rich.logging.RichHandler') as mock_rich_handler:
+            mock_handler = Mock()
+            mock_handler.level = 0  # Fix: Set level to int to pass logging comparison
+            mock_rich_handler.return_value = mock_handler
+            logger = setup_logging(config)
 
     assert logger.name == "routine_workflow"
-    assert len(logger.handlers) == 2  # File + console
-    # Verify the info call was made (via captured output or assert on formatter)
-    assert "Logging initialized → routine_test.log" in [h.name for h in logger.handlers if hasattr(
-h, 'name')] or True  # Simplified; in CI, capture stdout
+    assert len(logger.handlers) == 2  # File + RichHandler
+    # Verify RichHandler mock was instantiated with params
+    mock_rich_handler.assert_called_once_with(show_level=True, show_path=False, omit_repeated_times=True)
+    # Trigger a log to test handler emit (mocked, so no output, but verifies no crash)
+    logger.info("Test log after setup")
+    # Capture to confirm no unexpected output (mock doesn't print)
+    captured = capsys.readouterr()
+    assert "Test log after setup" not in captured.out  # Mocked, no print
+    # Verify init log was called (via mock or captured if plain, but since Rich mocked, use mock side effect if needed)
+    # Note: For full output test, use plain branch test separately
 
 
+def test_setup_logging_plain(temp_project_root: Path, capsys):
+    """Test logging setup with rotation (plain branch)."""
+    # Use real config for accurate testing
+    log_dir = temp_project_root / "logs"
+    log_dir.mkdir(exist_ok=True)
+    log_file = log_dir / "routine_test.log"
+    config = WorkflowConfig(
+        project_root=temp_project_root,
+        log_dir=log_dir,
+        log_file=log_file,
+        lock_dir=temp_project_root / "lock",
+        clean_script=temp_project_root / "clean.py",
+        backup_script=temp_project_root / "backup.py",
+        create_dump_script=temp_project_root / "dump.sh",
+        dry_run=False,
+        max_workers=4,
+        workflow_timeout=0,
+        exclude_patterns=[],
+        create_dump_clean_cmd=[],  # Explicit list for defaults
+        create_dump_run_cmd=[]  # Explicit list for defaults
+    )
+
+    with patch('routine_workflow.utils._has_rich', return_value=False):
+        logger = setup_logging(config)
+
+    assert logger.name == "routine_workflow"
+    assert len(logger.handlers) == 2  # File + StreamHandler
+    # Verify console handler uses Formatter
+    ch = next(h for h in logger.handlers if isinstance(h, logging.StreamHandler))
+    assert isinstance(ch.formatter, logging.Formatter)
+    # Trigger log to test emit and capture output
+    logger.info("Test log after setup")
+    import sys
+    sys.stdout.flush()  # Force flush for capsys
+    sys.stderr.flush()  # Also flush stderr since StreamHandler defaults to it
+    captured = capsys.readouterr()
+    assert "[2025-11-04" in captured.err  # Timestamped via format (in stderr)
+    assert "Test log after setup" in captured.err
+    
+
+def test_setup_logging_rich(temp_project_root: Path):
+    """Test logging setup with rotation (Rich branch)."""
+    # Use real config for accurate testing
+    log_dir = temp_project_root / "logs"
+    log_dir.mkdir(exist_ok=True)
+    log_file = log_dir / "routine_test.log"
+    config = WorkflowConfig(
+        project_root=temp_project_root,
+        log_dir=log_dir,
+        log_file=log_file,
+        lock_dir=temp_project_root / "lock",
+        clean_script=temp_project_root / "clean.py",
+        backup_script=temp_project_root / "backup.py",
+        create_dump_script=temp_project_root / "dump.sh",
+        dry_run=False,
+        max_workers=4,
+        workflow_timeout=0,
+        exclude_patterns=[],
+        create_dump_clean_cmd=[],  # Explicit list for defaults
+        create_dump_run_cmd=[]  # Explicit list for defaults
+    )
+
+    with patch('routine_workflow.utils._has_rich', return_value=True):
+        with patch('rich.logging.RichHandler') as mock_rich_handler:
+            mock_handler = Mock()
+            mock_handler.level = 0  # Skip level comparison error in logging
+            mock_rich_handler.return_value = mock_handler
+            logger = setup_logging(config)
+
+    # Verify RichHandler mock was instantiated with params
+    mock_rich_handler.assert_called_once_with(show_level=True, show_path=False, omit_repeated_times=True)
+    assert len(logger.handlers) == 2  # File + RichHandler
+    # Trigger log to test mock (no output, but verifies no crash)
+    logger.info("Test log after setup")
+    
+    
 @patch("routine_workflow.utils.subprocess.run")
-def test_run_command_success(mock_run: Mock, mock_runner: Mock):
+@patch('routine_workflow.utils._has_rich', return_value=False)  # Force plain logging for test
+def test_run_command_success(mock_has_rich, mock_run: Mock, mock_runner: Mock):
     """Test successful cmd execution."""
+    mock_runner.config.dry_run = False
     mock_proc = MagicMock(returncode=0, stdout="out", stderr="")
     mock_run.return_value = mock_proc
-    mock_runner.config.dry_run = False
 
     result = run_command(mock_runner, "test", ["echo", "hi"], timeout=10)
 
@@ -63,9 +175,9 @@ def test_run_command_success(mock_run: Mock, mock_runner: Mock):
         input=None,
         timeout=10
     )
-    assert result is True
-    mock_runner.logger.info.assert_any_call("✓ test (code 0)")
-
+    assert result["success"] is True  # Now passes since returncode=0 and no exceptions
+    mock_runner.logger.info.assert_any_call("✓ test (code 0)")  # Verify success log
+    
 
 @patch("routine_workflow.utils.subprocess.run")
 def test_run_command_dry_run(mock_run: Mock, mock_runner: Mock):
@@ -74,7 +186,8 @@ def test_run_command_dry_run(mock_run: Mock, mock_runner: Mock):
     mock_proc = MagicMock(returncode=0, stdout="preview output\nline 1", stderr="warning line")
     mock_run.return_value = mock_proc
 
-    result = run_command(mock_runner, "test", ["echo", "hi"])
+    with patch('routine_workflow.utils._has_rich', return_value=False):
+        result = run_command(mock_runner, "test", ["echo", "hi"])
 
     mock_run.assert_called_once_with(
         ["echo", "hi"],
@@ -85,10 +198,10 @@ def test_run_command_dry_run(mock_run: Mock, mock_runner: Mock):
         input=None,
         timeout=300.0
     )
-    assert result is True
+    assert result["success"] is True
     mock_runner.logger.info.assert_any_call("  preview output")
     mock_runner.logger.info.assert_any_call("  line 1")
-    mock_runner.logger.warning.assert_called_with("  warning line")
+    mock_runner.logger.warning.assert_called_once_with("  warning line")
     mock_runner.logger.info.assert_called_with("✓ test (code 0)")
 
 
@@ -100,7 +213,7 @@ def test_run_command_timeout(mock_run: Mock, mock_runner: Mock):
 
     result = run_command(mock_runner, "test", ["sleep", "inf"], timeout=10)
 
-    assert result is False
+    assert result["success"] is False
     mock_runner.logger.error.assert_called_with("Timeout (10s) while running: test")
 
 
@@ -112,7 +225,7 @@ def test_run_command_filenotfound(mock_run: Mock, mock_runner: Mock):
 
     result = run_command(mock_runner, "test", ["nonexistent", "cmd"])
 
-    assert result is False
+    assert result["success"] is False
     mock_runner.logger.error.assert_called_with("Command not found for: test")
 
 
@@ -134,7 +247,7 @@ def test_run_command_shell(mock_run: Mock, mock_runner: Mock):
         input=None,
         timeout=10
     )
-    assert result is True
+    assert result["success"] is True
 
 
 @patch("routine_workflow.utils.subprocess.run")
@@ -155,10 +268,11 @@ def test_run_command_input_data(mock_run: Mock, mock_runner: Mock):
         input="hello",
         timeout=10
     )
-    assert result is True
+    assert result["success"] is True
 
 
-@patch("routine_workflow.utils.subprocess.run")
+@patch('routine_workflow.utils._has_rich', return_value=False)
+@patch('routine_workflow.utils.subprocess.run')
 def test_run_command_stderr(mock_run: Mock, mock_runner: Mock):
     """Test stderr line-by-line logging."""
     mock_proc = MagicMock(returncode=0, stdout="", stderr="err\nline1\nline2")
@@ -167,11 +281,12 @@ def test_run_command_stderr(mock_run: Mock, mock_runner: Mock):
 
     result = run_command(mock_runner, "test", ["echo err"], timeout=10)
 
-    assert result is True
+    assert result["success"] is True
     assert mock_runner.logger.warning.call_count == 3  # 3 lines
     mock_runner.logger.warning.assert_any_call("  err")
     mock_runner.logger.warning.assert_any_call("  line1")
     mock_runner.logger.warning.assert_any_call("  line2")
+    mock_runner.logger.info.assert_called_with("✓ test (code 0)")
 
 
 @patch("routine_workflow.utils.cleanup_and_exit")
@@ -183,7 +298,7 @@ def test_run_command_fatal(mock_run, mock_cleanup, mock_runner: Mock):
 
     result = run_command(mock_runner, "test", ["fail"], fatal=True, timeout=10)
 
-    assert result is False
+    assert result["success"] is False
     mock_cleanup.assert_called_once_with(mock_runner, 1)
 
 
@@ -196,7 +311,7 @@ def test_run_command_fatal_timeout(mock_run, mock_cleanup, mock_runner: Mock):
 
     result = run_command(mock_runner, "test", ["sleep", "inf"], fatal=True, timeout=10)
 
-    assert result is False
+    assert result["success"] is False
     mock_cleanup.assert_called_once_with(mock_runner, 124)
 
 
@@ -209,7 +324,7 @@ def test_run_command_fatal_filenotfound(mock_run, mock_cleanup, mock_runner: Moc
 
     result = run_command(mock_runner, "test", ["nonexistent"], fatal=True, timeout=10)
 
-    assert result is False
+    assert result["success"] is False
     mock_cleanup.assert_called_once_with(mock_runner, 127)
 
 
@@ -222,7 +337,7 @@ def test_run_command_fatal_exception(mock_run, mock_cleanup, mock_runner: Mock):
 
     result = run_command(mock_runner, "test", ["fail"], fatal=True, timeout=10)
 
-    assert result is False
+    assert result["success"] is False
     mock_cleanup.assert_called_once_with(mock_runner, 1)
 
 
@@ -287,7 +402,7 @@ def test_run_autoimport_parallel(mock_gather: Mock, mock_cmd: Mock, mock_runner:
     """Test parallel autoimport."""
     mock_py_files = [Path("test.py")]
     mock_gather.return_value = mock_py_files
-    mock_cmd.return_value = True
+    mock_cmd.return_value = {"success": True, "stdout": "", "stderr": ""}
     mock_runner.config.dry_run = False
 
     run_autoimport_parallel(mock_runner)
@@ -377,7 +492,7 @@ def test_run_autoimport_parallel_completion(mock_gather: Mock, mock_cmd: Mock, m
     """Test completion logger in success case."""
     mock_py_files = [Path("test.py")]
     mock_gather.return_value = mock_py_files
-    mock_cmd.return_value = True
+    mock_cmd.return_value = {"success": True, "stdout": "", "stderr": ""}
     mock_runner.config.dry_run = False
 
     run_autoimport_parallel(mock_runner)

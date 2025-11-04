@@ -4,12 +4,12 @@ build-backend = "hatchling.build"
 
 [project]
 name = "routine-workflow"
-version = "3.2.0"
-description = "Automated routine workflow runner for repository hygiene, backups, and dumps orchestration."
+version = "6.4.0"
+description = "Automated routine workflow runner for repository hygiene, backups, and dumps orchestration and much more."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
-  { name = "Dhruv", email = "contact@dhruv.dev" }
+  { name = "dhruv13x", email = "dhruv13x@gmail.com" }
 ]
 requires-python = ">=3.9"
 dependencies = [
@@ -26,7 +26,8 @@ dev = [
   "pytest-cov>=5.0",
   "mypy>=1.10",
   "twine>=5.0",
-  "build>=1.2.1"
+  "build>=1.2.1",
+  "rich>=13.0"
 ]
 
 [project.urls]
@@ -46,7 +47,27 @@ include = ["src", "tests", "README.md", "LICENSE", "pyproject.toml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=src/routine_workflow --cov-report=term-missing --cov-fail-under=85 -q"
+pythonpath = ["src"]
+addopts = """
+--tb=long
+--showlocals
+--setup-show
+--log-cli-level=DEBUG
+--durations=10
+--cov=src/routine_workflow
+--cov-branch
+--cov-report=term-missing
+--cov-report=html
+--cov-fail-under=90
+--timeout=10
+--strict-markers
+--strict-config
+--color=yes
+"""
+markers = [
+  "slow: marks slow tests (deselect with '-m \"not slow\"')",
+  "integration: marks integration tests",
+]
 
 [tool.coverage.run]
 branch = true

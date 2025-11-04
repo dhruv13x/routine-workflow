@@ -78,6 +78,10 @@ Run with increased verbosity (logs written to configured log_dir):
 
 routine-workflow --project-root /path/to/project --log-dir /var/log/routine-workflow
 
+routine-workflow --steps step2 step3  # Run only formatting + cleaning, in that order
+routine-workflow --steps step5 step1 step3.5  # Custom order: dumps first, then prune + scan
+routine-workflow --steps step3 step3 step4  # Repeat cache clean before backup
+
 
 ---
 
@@ -99,6 +103,7 @@ Run routine-workflow --help or refer to src/routine_workflow/cli.py for the most
 --workers INT                  Parallel workers (default: min(8, CPU))
 --workflow-timeout INT         Overall timeout in seconds (0 = disabled)
 --exclude-patterns PATTERN ... File discovery exclude patterns
+--steps STEP ...   Run specific steps only (space-separated; supports order/repeats, e.g., "step1 step3 step1"). Defaults to all.
 
 
 ---

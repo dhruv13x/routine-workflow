@@ -1,7 +1,10 @@
+"""Tests for runner orchestration."""
+
+import signal
+from unittest.mock import patch, Mock, ANY, call
 import pytest
-import logging
-from unittest.mock import patch, Mock, MagicMock
 from pathlib import Path
+import logging
 
 from routine_workflow.runner import WorkflowRunner
 from routine_workflow.config import WorkflowConfig
@@ -11,19 +14,23 @@ from routine_workflow.steps import (
     clean_caches,
     backup_project,
     generate_dumps,
+    run_tests,
+    security_scan,
+    commit_hygiene,
+    dep_audit,
 )  # Import for patching
 
 
-
-"""Tests for runner orchestration."""
-
-import signal
-from unittest.mock import patch, Mock, ANY
 import pytest
-from pathlib import Path
+import logging
 
-from routine_workflow.runner import WorkflowRunner
-from routine_workflow.config import WorkflowConfig
+@pytest.fixture(autouse=True)
+def clear_routine_logger():
+    logger = logging.getLogger("routine_workflow")
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+    logger.handlers.clear()  # Reset fully
+    yield
 
 
 @patch("routine_workflow.runner.setup_logging")
@@ -41,11 +48,15 @@ def test_init(mock_handlers: Mock, mock_logging: Mock, mock_config: WorkflowConf
 
 @patch('routine_workflow.runner.delete_old_dumps')
 @patch('routine_workflow.runner.reformat_code')
+@patch('routine_workflow.runner.run_tests')
 @patch('routine_workflow.runner.clean_caches')
+@patch('routine_workflow.runner.security_scan')
 @patch('routine_workflow.runner.backup_project')
 @patch('routine_workflow.runner.generate_dumps')
+@patch('routine_workflow.runner.commit_hygiene')
+@patch('routine_workflow.runner.dep_audit')
 @patch('routine_workflow.runner.lock_context')
-def test_run_success(mock_lock, mock_generate, mock_backup, mock_clean, mock_reformat, mock_delete, mock_config: WorkflowConfig):
+def test_run_success(mock_lock, mock_dep_audit, mock_commit, mock_generate, mock_backup, mock_security, mock_clean, mock_run_tests, mock_reformat, mock_delete, mock_config: WorkflowConfig):
     """Test successful run calls all steps."""
     mock_backup.return_value = True
     mock_lock.__enter__.return_value = None
@@ -57,28 +68,37 @@ def test_run_success(mock_lock, mock_generate, mock_backup, mock_clean, mock_ref
     assert result == 0
     mock_delete.assert_called_once_with(runner)
     mock_reformat.assert_called_once_with(runner)
+    mock_run_tests.assert_called_once_with(runner)
     mock_clean.assert_called_once_with(runner)
+    mock_security.assert_called_once_with(runner)
     mock_backup.assert_called_once_with(runner)
     mock_generate.assert_called_once_with(runner)
+    mock_commit.assert_called_once_with(runner)
+    mock_dep_audit.assert_called_once_with(runner)
     mock_log.info.assert_any_call('WORKFLOW SUCCESS')
 
 
-def test_run_backup_fail(mock_config: Mock):
+@patch('routine_workflow.runner.lock_context')
+def test_run_backup_fail(mock_lock, mock_config: WorkflowConfig):
     """Test abort on backup fail."""
     mock_config.backup_script = Mock()
     mock_config.backup_script.exists.return_value = True  # Force "exists"
     mock_config.fail_on_backup = True
 
     runner = WorkflowRunner(mock_config)
-    with patch('routine_workflow.runner.lock_context'), \
-         patch('routine_workflow.runner.delete_old_dumps'), \
+    with patch('routine_workflow.runner.delete_old_dumps'), \
          patch('routine_workflow.runner.reformat_code'), \
+         patch('routine_workflow.runner.run_tests'), \
          patch('routine_workflow.runner.clean_caches'), \
+         patch('routine_workflow.runner.security_scan'), \
          patch('routine_workflow.runner.backup_project') as mock_backup, \
          patch('routine_workflow.runner.generate_dumps'), \
+         patch('routine_workflow.runner.commit_hygiene'), \
+         patch('routine_workflow.runner.dep_audit'), \
          patch.object(runner, 'logger'):
 
         mock_backup.return_value = False
+        mock_lock.__enter__.return_value = None
         result = runner.run()
 
     assert result == 2
@@ -104,12 +124,16 @@ def test_run_exception(mock_lock, mock_config: WorkflowConfig):
 @patch('routine_workflow.runner.signal.signal')
 @patch('routine_workflow.runner.delete_old_dumps')
 @patch('routine_workflow.runner.reformat_code')
+@patch('routine_workflow.runner.run_tests')
 @patch('routine_workflow.runner.clean_caches')
+@patch('routine_workflow.runner.security_scan')
 @patch('routine_workflow.runner.backup_project')
 @patch('routine_workflow.runner.generate_dumps')
+@patch('routine_workflow.runner.commit_hygiene')
+@patch('routine_workflow.runner.dep_audit')
 @patch('routine_workflow.runner.lock_context')
 def test_workflow_timeout_alarm(
-    mock_lock, mock_generate, mock_backup, mock_clean, mock_reformat, mock_delete,
+    mock_lock, mock_dep_audit, mock_commit, mock_generate, mock_backup, mock_security, mock_clean, mock_run_tests, mock_reformat, mock_delete,
     mock_signal, mock_alarm, mock_handlers, mock_config: WorkflowConfig
 ):
     """Test SIGALRM setup and teardown."""
@@ -117,6 +141,9 @@ def test_workflow_timeout_alarm(
     mock_config.create_dump_run_cmd = ['create-dump', 'batch', 'run']
     mock_config.backup_script = Mock(exists=False)  # Skip backup
     mock_config.clean_script = Mock(exists=False)  # Skip clean
+    mock_config.test_cov_threshold = 85
+    mock_config.enable_security = False
+    mock_config.git_push = False
     runner = WorkflowRunner(mock_config)
     runner.config.workflow_timeout = 300
 
@@ -135,18 +162,25 @@ def test_workflow_timeout_alarm(
 @patch('routine_workflow.runner.setup_signal_handlers')  # Skip SIGINT/SIGTERM
 @patch('routine_workflow.runner.delete_old_dumps')
 @patch('routine_workflow.runner.reformat_code')
+@patch('routine_workflow.runner.run_tests')
 @patch('routine_workflow.runner.clean_caches')
+@patch('routine_workflow.runner.security_scan')
 @patch('routine_workflow.runner.backup_project')
 @patch('routine_workflow.runner.generate_dumps')
+@patch('routine_workflow.runner.commit_hygiene')
+@patch('routine_workflow.runner.dep_audit')
 @patch('routine_workflow.runner.lock_context')
 @patch('routine_workflow.runner.signal.alarm')
 @patch('routine_workflow.runner.signal.signal')
 def test_run_no_timeout(
-    mock_signal, mock_alarm, mock_lock, mock_generate, mock_backup, mock_clean, mock_reformat, mock_delete, mock_handlers, mock_config: WorkflowConfig
+    mock_signal, mock_alarm, mock_lock, mock_dep_audit, mock_commit, mock_generate, mock_backup, mock_security, mock_clean, mock_run_tests, mock_reformat, mock_delete, mock_handlers, mock_config: WorkflowConfig
 ):
     """Test no alarm setup if timeout=0."""
     mock_lock.__enter__.return_value = None
     mock_config.workflow_timeout = 0
+    mock_config.test_cov_threshold = 85
+    mock_config.enable_security = False
+    mock_config.git_push = False
     runner = WorkflowRunner(mock_config)
 
     result = runner.run()
@@ -159,18 +193,25 @@ def test_run_no_timeout(
 @patch('routine_workflow.runner.setup_signal_handlers')  # Skip SIGINT/SIGTERM
 @patch('routine_workflow.runner.delete_old_dumps')
 @patch('routine_workflow.runner.reformat_code')
+@patch('routine_workflow.runner.run_tests')
 @patch('routine_workflow.runner.clean_caches')
+@patch('routine_workflow.runner.security_scan')
 @patch('routine_workflow.runner.backup_project')
 @patch('routine_workflow.runner.generate_dumps')
+@patch('routine_workflow.runner.commit_hygiene')
+@patch('routine_workflow.runner.dep_audit')
 @patch('routine_workflow.runner.lock_context')
 @patch('routine_workflow.runner.signal.alarm')
 @patch('routine_workflow.runner.signal.signal')
 def test_run_alarm_setup_exception(
-    mock_signal, mock_alarm, mock_lock, mock_generate, mock_backup, mock_clean, mock_reformat, mock_delete, mock_handlers, mock_config: WorkflowConfig
+    mock_signal, mock_alarm, mock_lock, mock_dep_audit, mock_commit, mock_generate, mock_backup, mock_security, mock_clean, mock_run_tests, mock_reformat, mock_delete, mock_handlers, mock_config: WorkflowConfig
 ):
     """Test alarm setup warning on exception."""
     mock_lock.__enter__.return_value = None
     mock_config.workflow_timeout = 300
+    mock_config.test_cov_threshold = 85
+    mock_config.enable_security = False
+    mock_config.git_push = False
     runner = WorkflowRunner(mock_config)
     with patch.object(runner, 'logger') as mock_log:
         mock_alarm.side_effect = Exception('Alarm error')
@@ -183,18 +224,25 @@ def test_run_alarm_setup_exception(
 @patch('routine_workflow.runner.setup_signal_handlers')  # Skip SIGINT/SIGTERM
 @patch('routine_workflow.runner.delete_old_dumps')
 @patch('routine_workflow.runner.reformat_code')
+@patch('routine_workflow.runner.run_tests')
 @patch('routine_workflow.runner.clean_caches')
+@patch('routine_workflow.runner.security_scan')
 @patch('routine_workflow.runner.backup_project')
 @patch('routine_workflow.runner.generate_dumps')
+@patch('routine_workflow.runner.commit_hygiene')
+@patch('routine_workflow.runner.dep_audit')
 @patch('routine_workflow.runner.lock_context')
 @patch('routine_workflow.runner.signal.alarm')
 @patch('routine_workflow.runner.signal.signal')
 def test_run_alarm_teardown_exception(
-    mock_signal, mock_alarm, mock_lock, mock_generate, mock_backup, mock_clean, mock_reformat, mock_delete, mock_handlers, mock_config: WorkflowConfig
+    mock_signal, mock_alarm, mock_lock, mock_dep_audit, mock_commit, mock_generate, mock_backup, mock_security, mock_clean, mock_run_tests, mock_reformat, mock_delete, mock_handlers, mock_config: WorkflowConfig
 ):
     """Test alarm teardown exception ignored."""
     mock_lock.__enter__.return_value = None
     mock_config.workflow_timeout = 300
+    mock_config.test_cov_threshold = 85
+    mock_config.enable_security = False
+    mock_config.git_push = False
     runner = WorkflowRunner(mock_config)
     with patch.object(runner, 'logger') as mock_log:
         mock_alarm.side_effect = [None, Exception('Teardown error')]  # Setup ok, teardown fails
@@ -208,16 +256,23 @@ def test_run_alarm_teardown_exception(
 @patch('routine_workflow.runner.setup_signal_handlers')  # Skip SIGINT/SIGTERM
 @patch('routine_workflow.runner.delete_old_dumps')
 @patch('routine_workflow.runner.reformat_code')
+@patch('routine_workflow.runner.run_tests')
 @patch('routine_workflow.runner.clean_caches')
+@patch('routine_workflow.runner.security_scan')
 @patch('routine_workflow.runner.backup_project')
 @patch('routine_workflow.runner.generate_dumps')
+@patch('routine_workflow.runner.commit_hygiene')
+@patch('routine_workflow.runner.dep_audit')
 @patch('routine_workflow.runner.lock_context')
 def test_run_chdir(
-    mock_lock, mock_generate, mock_backup, mock_clean, mock_reformat, mock_delete, mock_handlers, mock_config: WorkflowConfig
+    mock_lock, mock_dep_audit, mock_commit, mock_generate, mock_backup, mock_security, mock_clean, mock_run_tests, mock_reformat, mock_delete, mock_handlers, mock_config: WorkflowConfig
 ):
     """Test chdir to project_root."""
     mock_lock.__enter__.return_value = None
     mock_config.project_root = Path('/test/root')
+    mock_config.test_cov_threshold = 85
+    mock_config.enable_security = False
+    mock_config.git_push = False
     runner = WorkflowRunner(mock_config)
     with patch('os.chdir') as mock_chdir:
         result = runner.run()
@@ -226,54 +281,29 @@ def test_run_chdir(
     assert result == 0
 
 
-
-
-
-@pytest.fixture
-def minimal_config(tmp_path: Path):
-    """Minimal config for isolated tests."""
-    return WorkflowConfig(
-        project_root=tmp_path,
-        log_dir=tmp_path / "logs",
-        log_file=tmp_path / "routine_test.log",  # Valid Path to avoid None error
-        lock_dir=tmp_path / "lock",
-        clean_script=tmp_path / "clean.py",
-        backup_script=tmp_path / "backup.py",
-        create_dump_script=tmp_path / "dump.sh",
-        fail_on_backup=False,
-        auto_yes=False,
-        dry_run=False,
-        max_workers=1,
-        workflow_timeout=0,
-        exclude_patterns=[],
-    )
-
-
 @patch("routine_workflow.runner.signal.alarm")
 @patch("routine_workflow.runner.generate_dumps")
 @patch("routine_workflow.runner.delete_old_dumps")
 @patch("routine_workflow.runner.clean_caches")
+@patch("routine_workflow.runner.security_scan")
 @patch("routine_workflow.runner.reformat_code")
+@patch("routine_workflow.runner.run_tests")
 @patch("routine_workflow.runner.backup_project")
 @patch("routine_workflow.runner.lock_context")
 def test_run_specific_steps(
-    mock_lock,
-    mock_backup,
-    mock_reformat,
-    mock_clean,
-    mock_delete,
-    mock_generate,
-    mock_alarm,
+    mock_lock, mock_backup, mock_run_tests, mock_reformat, mock_security, mock_clean, mock_delete, mock_generate, mock_alarm,
     minimal_config: WorkflowConfig,
     caplog: pytest.LogCaptureFixture,
 ):
-    """Test selective steps: filter, warn skips, invoke only targeted funcs."""
+    """Test selective steps: filter, warn skips, invoke only targeted steps."""
     # Setup mocks: steps return success; lock enters/exits cleanly
     mock_lock.return_value.__enter__.return_value = None  # No-op lock
     mock_delete.return_value = None
     mock_reformat.return_value = None
+    mock_run_tests.return_value = True
     mock_clean.return_value = None
-    mock_backup.return_value = True  # Success for gating
+    mock_security.return_value = True
+    mock_backup.return_value = True
     mock_generate.return_value = None
     mock_alarm.return_value = None  # No-op timeout
 
@@ -285,16 +315,13 @@ def test_run_specific_steps(
     runner.logger.propagate = True  # Route named logger to root for capture
     result = runner.run()
 
-    # Debug: Print captured count (remove post-validation)
-    print(f"Caplog records captured: {len(caplog.records)}")
-
     # Assertions: filtering, warnings, invocations, outcome
     assert result == 0
 
     # Verify warning for skips (via caplog records; order-independent)
     skip_warnings = [rec for rec in caplog.records if "Skipping steps:" in rec.message]
     assert len(skip_warnings) == 1
-    expected_steps = {"step1", "step3", "step5"}
+    expected_steps = {"step1", "step2.5", "step3", "step3.5", "step5", "step6", "step6.5"}
     actual_steps = set(skip_warnings[0].message.split(": ")[1].strip().split(", "))
     assert actual_steps == expected_steps
 
@@ -306,9 +333,70 @@ def test_run_specific_steps(
     mock_reformat.assert_called_once_with(runner)  # step2
     mock_backup.assert_called_once_with(runner)    # step4
     mock_delete.assert_not_called()
+    mock_run_tests.assert_not_called()
     mock_clean.assert_not_called()
+    mock_security.assert_not_called()
     mock_generate.assert_not_called()
 
     # Lock acquired/released
     mock_lock.assert_called_once()
     mock_lock.return_value.__exit__.assert_called_once_with(None, None, None)
+    
+
+
+@pytest.fixture
+def minimal_config(tmp_path: Path) -> WorkflowConfig:
+    """Minimal config for runner tests using tmp_path."""
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir(exist_ok=True)
+    log_file = log_dir / "test.log"
+    lock_dir = tmp_path / "lock"
+    clean_script = tmp_path / "clean.py"
+    backup_script = tmp_path / "backup.py"
+    create_dump_script = tmp_path / "dump.sh"
+    return WorkflowConfig(
+        project_root=tmp_path,
+        log_dir=log_dir,
+        log_file=log_file,
+        lock_dir=lock_dir,
+        clean_script=clean_script,
+        backup_script=backup_script,
+        create_dump_script=create_dump_script,
+        fail_on_backup=False,
+        auto_yes=True,
+        dry_run=False,
+        max_workers=1,
+        workflow_timeout=0,
+        exclude_patterns=[],
+        test_cov_threshold=85,
+        git_push=False,
+        enable_security=False,
+        enable_dep_audit=False,
+    )
+
+
+@patch("routine_workflow.runner.delete_old_dumps")
+@patch("routine_workflow.runner.reformat_code")
+def test_runner_custom_order(mock_step2, mock_step1, minimal_config: WorkflowConfig):
+    """Test custom step order: execute in user-specified sequence."""
+    # Patch only targeted steps; fixture already sets project_root=tmp_path
+    runner = WorkflowRunner(minimal_config, steps=["step2", "step1"])  # Reverse: reformat then delete
+    with patch.object(runner, "logger"):  # Suppress logs for isolation
+        runner.run()
+
+    # Assert invocations (order preserved by loop; step2 before step1)
+    mock_step2.assert_has_calls([call(runner)], any_order=False)
+    mock_step1.assert_has_calls([call(runner)], any_order=False)
+
+
+@patch("routine_workflow.runner.clean_caches")
+def test_runner_repeat_step(mock_step3, minimal_config: WorkflowConfig):
+    """Test step repetition: invoke callable multiple times."""
+    # Patch target; fixture handles paths
+    runner = WorkflowRunner(minimal_config, steps=["step3", "step3"])  # Repeat clean
+    with patch.object(runner, "logger"):
+        runner.run()
+
+    # Assert repeated invocation
+    assert mock_step3.call_count == 2
+    assert all(call.args[0] is runner for call in mock_step3.mock_calls)  # Same runner instance

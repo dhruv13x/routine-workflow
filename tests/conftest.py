@@ -9,6 +9,9 @@ import pytest
 import shutil
 import glob
 
+import pytest
+from unittest.mock import patch
+
 # Fix for src layout: Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
@@ -124,3 +127,10 @@ def cleanup_artifacts(request):
             elif path.is_dir():
                 shutil.rmtree(path)
                 print(f"Cleaned dir: {path}")
+                
+
+@pytest.fixture(autouse=True)
+def disable_rich_in_tests():
+    """Force plain logging in tests to avoid Rich/pytest caplog conflicts."""
+    with patch("routine_workflow.utils._has_rich", return_value=False):
+        yield

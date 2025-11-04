@@ -1,8 +1,11 @@
+# src/routine_workflow/utils.py
+
 """Utility functions for subprocess, file ops, and parallelism."""
 
 from __future__ import annotations
 
 import fnmatch
+import importlib.util
 import logging
 import os
 import shlex
@@ -11,7 +14,8 @@ import signal
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import List, Optional, Sequence, Union
+from typing import Dict, List, Optional, Sequence, Union
+from logging.handlers import RotatingFileHandler
 
 from typing import TYPE_CHECKING
 
@@ -22,23 +26,33 @@ from .config import WorkflowConfig
 from .lock import cleanup_and_exit
 
 
+def _has_rich() -> bool:
+    """Check if rich is available (optional dep for enhanced logging)."""
+    return importlib.util.find_spec("rich") is not None
+
+
 def setup_logging(config: WorkflowConfig) -> logging.Logger:
     logger = logging.getLogger("routine_workflow")
     logger.setLevel(logging.INFO)
 
-    if not logger.handlers:
+    if logger.handlers:
+        logger.warning("Logging handlers already exist; reusing existing setup")
+    else:
         fmt = logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-        # Rotating file to avoid unbounded logs
-        from logging.handlers import RotatingFileHandler
-        fh = RotatingFileHandler(config.log_file, maxBytes=5 * 1024 * 1024, backupCount=5, encoding='utf-8')
+        fh = RotatingFileHandler(config.log_file, maxBytes=5*1024*1024, backupCount=5, encoding='utf-8')
         fh.setFormatter(fmt)
-        ch = logging.StreamHandler()
-        ch.setFormatter(fmt)
         logger.addHandler(fh)
+
+        if _has_rich():
+            from rich.logging import RichHandler
+            ch = RichHandler(show_level=True, show_path=False, omit_repeated_times=True)
+        else:
+            ch = logging.StreamHandler()
+            ch.setFormatter(fmt)
         logger.addHandler(ch)
         logger.propagate = False
 
-    logger.info(f"Logging initialized → {config.log_file}")
+    logger.info(f"Logging initialized → {str(config.log_file)} (Rich: {_has_rich()})")
     return logger
 
 
@@ -67,11 +81,12 @@ def run_command(
     input_data: Optional[str] = None,
     timeout: float = 300.0,
     fatal: bool = False,
-) -> bool:
+) -> Dict[str, Union[bool, str]]:
     config = runner.config
     cwd_path = str(cwd) if cwd else str(config.project_root)
 
     # Normalize: prefer list; if cmd is string and not using shell, shlex.split it
+    # Note: shlex.split assumes no complex quoting; for safety, prefer list inputs
     if isinstance(cmd, str):
         if shell:
             cmd_to_run = cmd  # pass string to subprocess when shell=True
@@ -98,11 +113,21 @@ def run_command(
             timeout=timeout,
         )
 
-        if proc.stdout:
-            for line in proc.stdout.splitlines():
+        stdout = proc.stdout or ""
+        stderr = proc.stderr or ""
+
+        # Log stdout through logger for consistency/Rich markup support
+        for line in stdout.splitlines():
+            if _has_rich():
+                runner.logger.info(f"[green]  {line}[/green]")
+            else:
                 runner.logger.info(f"  {line}")
-        if proc.stderr:
-            for line in proc.stderr.splitlines():
+
+        # Log stderr through logger
+        for line in stderr.splitlines():
+            if _has_rich():
+                runner.logger.warning(f"[red]  {line}[/red]")
+            else:
                 runner.logger.warning(f"  {line}")
 
         success = proc.returncode == 0
@@ -113,23 +138,40 @@ def run_command(
             if fatal:
                 runner.logger.error("Fatal command failure — aborting")
                 cleanup_and_exit(runner, proc.returncode or 1)
-        return success
 
-    except subprocess.TimeoutExpired:
+        return {
+            "success": success,
+            "stdout": stdout,
+            "stderr": stderr
+        }
+
+    except subprocess.TimeoutExpired as e:
         runner.logger.error(f"Timeout ({timeout}s) while running: {description}")
         if fatal:
             cleanup_and_exit(runner, 124)
-        return False
-    except FileNotFoundError:
+        return {
+            "success": False,
+            "stdout": "",
+            "stderr": f"TimeoutExpired: {str(e)}"
+        }
+    except FileNotFoundError as e:
         runner.logger.error(f"Command not found for: {description}")
         if fatal:
             cleanup_and_exit(runner, 127)
-        return False
+        return {
+            "success": False,
+            "stdout": "",
+            "stderr": f"FileNotFoundError: {str(e)}"
+        }
     except Exception as e:
         runner.logger.exception(f"Unhandled exception running command: {description} — {e}")
         if fatal:
             cleanup_and_exit(runner, 1)
-        return False
+        return {
+            "success": False,
+            "stdout": "",
+            "stderr": f"Exception: {str(e)}"
+        }
 
 
 def cmd_exists(cmd: str) -> bool:
@@ -158,6 +200,11 @@ def gather_py_files(config: WorkflowConfig) -> List[Path]:
 
 def run_autoimport_parallel(runner: WorkflowRunner) -> None:
     config = runner.config
+
+    if not cmd_exists('autoimport'):
+        runner.logger.warning('autoimport not found - skipping')
+        return
+
     py_files = gather_py_files(config)
     runner.logger.info(f"Processing {len(py_files)} files with {config.max_workers} workers")
 
@@ -172,7 +219,8 @@ def run_autoimport_parallel(runner: WorkflowRunner) -> None:
     success_count = 0
 
     def _process(p: Path):
-        ok = run_command(runner, f"Autoimport {p.name}", ["autoimport", "--keep-unused-imports", str(p)], cwd=p.parent, timeout=120.0)
+        result = run_command(runner, f"Autoimport {p.name}", ["autoimport", "--keep-unused-imports", str(p)], cwd=p.parent, timeout=120.0)
+        ok = result["success"]
         return (p, ok)
 
     with ThreadPoolExecutor(max_workers=config.max_workers) as ex:
