@@ -30,8 +30,10 @@ def clean_caches(runner: WorkflowRunner) -> None:
     cmd.append('--allow-root')  # Always for privileged access
     if config.dry_run:
         cmd.append('--preview')  # Tool-native dry mode
+    else:
+        cmd.append('--yes')  # Force non-interactive for destructive cleanup
     if config.auto_yes:
-        cmd.append('--yes')  # Skip confirmations (non-interactive)
+        cmd.append('--yes')  # Redundant but explicit for opt-in
 
     description = 'Clean caches'
 
@@ -42,7 +44,7 @@ def clean_caches(runner: WorkflowRunner) -> None:
         fatal=False  # Advisory; continue on fail
     )
 
-    if success:
+    if success["success"]:
         runner.logger.info('Cache cleanup completed successfully')
     else:
         runner.logger.warning('Cache cleanup failed or skipped')

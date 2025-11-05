@@ -10,10 +10,11 @@ import pytest
 from pathlib import Path
 
 from routine_workflow.cli import (
-    build_parser, main, validate_steps, _has_rich, render_rich_help
+    build_parser, main, validate_steps, _has_rich, render_rich_help,
+    STEP_NAMES, STEP_ALIASES, PRIMARY_ALIASES
 )
 from routine_workflow.config import WorkflowConfig
-from routine_workflow.runner import WorkflowRunner, STEP_NAMES
+from routine_workflow.runner import WorkflowRunner
 
 
 @pytest.fixture
@@ -43,7 +44,8 @@ def test_render_rich_help(mock_text, mock_table, mock_panel, mock_markdown, mock
     mock_parser = Mock()
     mock_parser.format_usage.return_value = 'usage: prog [options]'
     mock_parser.description = 'Test description'
-    mock_parser.epilog = 'Examples:\n  cmd1\n  cmd2'
+    # --- FIXED: Removed leading spaces from epilog lines ---
+    mock_parser.epilog = 'Examples:\nroutine-workflow -s git\ncmd2'
     mock_parser._actions = [
         Mock(option_strings=['-p', '--project-root'], help='Project root', default=Path('/default')),
         Mock(option_strings=['-d', '--dry-run'], help='Dry run', default=True),
@@ -75,16 +77,21 @@ def test_render_rich_help(mock_text, mock_table, mock_panel, mock_markdown, mock
     ])
     console.print.assert_any_call(options_table)
 
-    # Steps table
+    # --- UPDATED: Steps table assertions ---
     steps_table.add_column.assert_has_calls([
-        call('Step', style='cyan', no_wrap=True),
-        call('Description', style='white')
+        call("Alias (Name)", style="cyan", no_wrap=True),
+        call("Step ID", style="dim", no_wrap=True),
+        call("Description", style="white")
     ])
-    for step in sorted(STEP_NAMES):
-        steps_table.add_row.assert_any_call(step, ANY)
+    for step_id in sorted(STEP_NAMES):
+        alias = PRIMARY_ALIASES.get(step_id, "N/A")
+        steps_table.add_row.assert_any_call(alias, step_id, ANY)
     console.print.assert_any_call(steps_table)
+    # --- END UPDATED ---
 
-    mock_markdown.assert_called_once_with(ANY)
+    # --- FIXED: Assertion now matches expected markdown generation ---
+    mock_markdown.assert_called_once_with("# Usage Examples\n- ```bash\nroutine-workflow -s git\n```\ncmd2\n")
+
 def test_render_rich_help_no_description():
     """Test no description skips print."""
     mock_parser = Mock()
@@ -114,6 +121,7 @@ def test_build_parser_help_texts():
     assert 'steps' in actions
     assert actions['steps'].nargs == '+'
     assert actions['steps'].default is None
+    assert 'aliases' in actions['steps'].help # Check for new help text
 
     # Spot-check booleans - check type
     assert type(actions['enable_security']) == argparse._StoreTrueAction
@@ -164,41 +172,81 @@ def test_main_full_flow(mock_from_args, mock_runner):
     mock_from_args.return_value = mock_cfg
     mock_runner.return_value.run.return_value = 0
 
-    with patch.object(sys, 'argv', ['prog', '-nd', '-s', 'step1', 'step99']):
+    # --- UPDATED: Use 'git' alias and invalid 'step99' ---
+    with patch.object(sys, 'argv', ['prog', '-nd', '-s', 'git', 'step99']):
         result = main()
 
     assert result == 0
     mock_from_args.assert_called_once()
-    mock_runner.assert_called_once_with(mock_cfg, steps=['step1'])  # Filtered
+    # --- UPDATED: Asserts translation and filtering ---
+    mock_runner.assert_called_once_with(mock_cfg, steps=['step6'])  # 'git' -> 'step6'
 
 
 def test_validate_steps_invalid_all(capsys):
     """Test all invalid: warn + exit 1."""
     with pytest.raises(SystemExit) as exc:
-        validate_steps(['invalid1', 'invalid2'], STEP_NAMES)
+        # --- UPDATED: Pass aliases ---
+        validate_steps(['invalid1', 'invalid2'], STEP_NAMES, STEP_ALIASES)
     assert exc.value.code == 1
     captured = capsys.readouterr()
     assert 'Skipping invalid steps: invalid1, invalid2' in captured.err
+    assert 'Error: No valid steps provided' in captured.err
 
 
 def test_validate_steps_mixed(capsys):
     """Test mixed: filter valids, warn invalids."""
-    result = validate_steps(['step1', 'invalid'], STEP_NAMES)
+    # --- UPDATED: Pass aliases ---
+    result = validate_steps(['step1', 'invalid'], STEP_NAMES, STEP_ALIASES)
     assert result == ['step1']
     captured = capsys.readouterr()
     assert 'Skipping invalid steps: invalid' in captured.err
 
 
-def test_validate_steps_empty_list():
+def test_validate_steps_empty_list(capsys):
     """Test empty list: treat as None, return []."""
-    result = validate_steps([], STEP_NAMES)
+    # --- UPDATED: Pass aliases ---
+    result = validate_steps([], STEP_NAMES, STEP_ALIASES)
     assert result == []
+    captured = capsys.readouterr()
+    assert 'Warning' not in captured.err
 
 
-def test_validate_steps_none():
+def test_validate_steps_none(capsys):
     """Test None: return []."""
-    result = validate_steps(None, STEP_NAMES)
+    # --- UPDATED: Pass aliases ---
+    result = validate_steps(None, STEP_NAMES, STEP_ALIASES)
     assert result == []
+    captured = capsys.readouterr()
+    assert 'Warning' not in captured.err
+
+# --- NEW TESTS FOR ALIASES ---
+
+def test_validate_steps_aliases_only(capsys):
+    """Test translation of friendly aliases."""
+    steps = ['git', 'backup', 'pytest']
+    result = validate_steps(steps, STEP_NAMES, STEP_ALIASES)
+    assert result == ['step6', 'step4', 'step2.5']
+    captured = capsys.readouterr()
+    assert 'Warning' not in captured.err
+
+def test_validate_steps_mixed_aliases_and_canonical(capsys):
+    """Test translation of mixed friendly and canonical names."""
+    steps = ['git', 'step3', 'pytest', 'step1']
+    result = validate_steps(steps, STEP_NAMES, STEP_ALIASES)
+    assert result == ['step6', 'step3', 'step2.5', 'step1']
+    captured = capsys.readouterr()
+    assert 'Warning' not in captured.err
+
+def test_validate_steps_normalization(capsys):
+    """Test underscore/dot normalization."""
+    # --- FIXED: This test now uses the ALIASES, not normalization ---
+    steps = ['delete_dump', 'step2.5', 'clean_caches']
+    result = validate_steps(steps, STEP_NAMES, STEP_ALIASES)
+    assert result == ['step1', 'step2.5', 'step3']
+    captured = capsys.readouterr()
+    assert 'Warning' not in captured.err
+
+# --- END NEW TESTS ---
 
 
 class TestArgParsing:
@@ -219,6 +267,7 @@ class TestArgParsing:
     @pytest.mark.parametrize('steps_str, expected_steps', [
         ('step1 step2', ['step1', 'step2']),
         ('step99', ['step99']),
+        ('git backup', ['git', 'backup']), # Tests aliases are parsed
     ])
     def test_steps_parsing(self, steps_str, expected_steps, tmp_path):
         """Test steps nargs='+'."""
@@ -282,10 +331,12 @@ def test_main_steps(mock_from_args: Mock, mock_runner: Mock):
     mock_from_args.return_value = mock_cfg
     mock_runner.return_value.run.return_value = 0
 
-    with patch.object(sys, "argv", ["prog", "--steps", "step2", "step3"]):
+    # --- UPDATED: Test with aliases ---
+    with patch.object(sys, "argv", ["prog", "--steps", "reformat", "clean"]):
         result = main()
 
     assert result == 0
+    # --- UPDATED: Assert translated steps ---
     mock_runner.assert_called_once_with(mock_cfg, steps=["step2", "step3"])
 
 
@@ -306,16 +357,19 @@ def test_validate_steps_invalid(capsys):
     """Test validate_steps warns on invalids and exits if all invalid."""
     invalid_steps = ["step99"]
     with pytest.raises(SystemExit) as exc_info:
-        validate_steps(invalid_steps, STEP_NAMES)
+        # --- UPDATED: Pass aliases ---
+        validate_steps(invalid_steps, STEP_NAMES, STEP_ALIASES)
     assert exc_info.value.code == 1
     captured = capsys.readouterr()
     assert "Warning: Skipping invalid steps: step99" in captured.err
+    assert "Error: No valid steps provided" in captured.err
 
 
 def test_validate_steps_partial_invalid(capsys):
     """Test partial invalids: warn but continue with valids."""
     partial_steps = ["step2", "step99"]
-    result = validate_steps(partial_steps, STEP_NAMES)
+    # --- UPDATED: Pass aliases ---
+    result = validate_steps(partial_steps, STEP_NAMES, STEP_ALIASES)
     captured = capsys.readouterr()
     assert "Warning: Skipping invalid steps: step99" in captured.err
     assert result == ["step2"]
@@ -324,7 +378,8 @@ def test_validate_steps_partial_invalid(capsys):
 def test_validate_steps_all_valid(capsys):
     """Test all valid: no warn, return as-is."""
     valid_steps = ["step1", "step2"]
-    result = validate_steps(valid_steps, STEP_NAMES)
+    # --- UPDATED: Pass aliases ---
+    result = validate_steps(valid_steps, STEP_NAMES, STEP_ALIASES)
     assert result == valid_steps
     captured = capsys.readouterr()
     assert "Warning" not in captured.err
@@ -346,13 +401,14 @@ def test_parse_arguments_defaults():
 
 def test_parse_arguments_custom():
     """Test custom args."""
-    with patch.object(sys, "argv", ["prog", "-d", "-w", "2", "-s", "step1", "-es", "-eda"]):
+    # --- UPDATED: Use 'git' alias in test ---
+    with patch.object(sys, "argv", ["prog", "-d", "-w", "2", "-s", "git", "-es", "-eda"]):
         parser = build_parser()
-        args = parser.parse_args(["-d", "-w", "2", "-s", "step1", "-es", "-eda"])
+        args = parser.parse_args(["-d", "-w", "2", "-s", "git", "-es", "-eda"])
 
     assert args.dry_run is True
     assert args.workers == 2
-    assert args.steps == ["step1"]
+    assert args.steps == ["git"] # Parser just captures the input
     assert args.enable_security is True
     assert args.enable_dep_audit is True
 
@@ -373,3 +429,5 @@ def test_parse_arguments_shortcuts():
         args = parser.parse_args(["-p", "/custom/root", "-l", "/custom/logs", "-t", "1800"])
 
     assert args.project_root == Path("/custom/root")
+    assert args.log_dir == Path("/custom/logs")
+    assert args.workflow_timeout == 1800

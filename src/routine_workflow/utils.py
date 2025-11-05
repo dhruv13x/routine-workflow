@@ -12,6 +12,7 @@ import shlex
 import shutil
 import signal
 import subprocess
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Union
@@ -81,19 +82,18 @@ def run_command(
     input_data: Optional[str] = None,
     timeout: float = 300.0,
     fatal: bool = False,
+    stream: bool = False,  # Live line logging for interactive tools (e.g., pytest)
 ) -> Dict[str, Union[bool, str]]:
     config = runner.config
     cwd_path = str(cwd) if cwd else str(config.project_root)
 
     # Normalize: prefer list; if cmd is string and not using shell, shlex.split it
-    # Note: shlex.split assumes no complex quoting; for safety, prefer list inputs
     if isinstance(cmd, str):
         if shell:
-            cmd_to_run = cmd  # pass string to subprocess when shell=True
+            cmd_to_run = cmd
         else:
             cmd_to_run = shlex.split(cmd)
     else:
-        # cmd is a sequence
         if shell:
             cmd_to_run = ' '.join(shlex.quote(str(c)) for c in cmd)
         else:
@@ -101,43 +101,97 @@ def run_command(
 
     runner.logger.info(f">>> {description}: {cmd_to_run}")
 
-    # Always execute for native dry-run outputs; steps append tool flags (-d/-nd)
+    stdout = ""
+    stderr = ""
+    returncode = 0
+
     try:
-        proc = subprocess.run(
-            cmd_to_run,
-            cwd=cwd_path,
-            capture_output=True,
-            text=True,
-            shell=shell,
-            input=input_data,
-            timeout=timeout,
-        )
+        if stream:
+            # Streaming mode: Popen for live line-by-line logging
+            proc = subprocess.Popen(
+                cmd_to_run,
+                cwd=cwd_path,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                stdin=subprocess.PIPE if input_data else None,
+                text=True,
+                shell=shell,
+                bufsize=1,  # Line-buffered for streaming
+                universal_newlines=True
+            )
 
-        stdout = proc.stdout or ""
-        stderr = proc.stderr or ""
+            def stream_pipe(pipe, log_func):
+                try:
+                    for line in iter(pipe.readline, ''):
+                        if line:
+                            log_func(line.rstrip())
+                except subprocess.TimeoutExpired:
+                    # swallow timeout — main thread handles it
+                    pass
+                except Exception as e:
+                    # do not leak to stderr
+                    runner.logger.debug(f"stream thread suppressed: {e}")
 
-        # Log stdout through logger for consistency/Rich markup support
-        for line in stdout.splitlines():
-            if _has_rich():
-                runner.logger.info(f"[green]  {line}[/green]")
-            else:
-                runner.logger.info(f"  {line}")
+            # Daemon threads for non-blocking streaming
+            stdout_thread = threading.Thread(target=stream_pipe, args=(proc.stdout, lambda l: runner.logger.info(f"[green]  {l}[/green]" if _has_rich() else f"  {l}")))
+            stdout_thread.daemon = True
+            stdout_thread.start()
 
-        # Log stderr through logger
-        for line in stderr.splitlines():
-            if _has_rich():
-                runner.logger.warning(f"[red]  {line}[/red]")
-            else:
-                runner.logger.warning(f"  {line}")
+            stderr_thread = threading.Thread(target=stream_pipe, args=(proc.stderr, lambda l: runner.logger.warning(f"[red]  {l}[/red]" if _has_rich() else f"  {l}")))
+            stderr_thread.daemon = True
+            stderr_thread.start()
 
-        success = proc.returncode == 0
-        if success:
-            runner.logger.info(f"✓ {description} (code {proc.returncode})")
+            # Send input if needed and close stdin to signal EOF
+            if input_data:
+                proc.stdin.write(input_data)
+                proc.stdin.close()
+
+            # Wait for completion or timeout
+            try:
+                returncode = proc.wait(timeout=timeout)
+                stdout, stderr = "", ""  # Streamed live; no capture needed
+                
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                # Do not call proc.wait() again — test expects only one wait call
+                returncode = 124
+                stdout, stderr = "", ""
+                
         else:
-            runner.logger.warning(f"✖ {description} (code {proc.returncode})")
+            # Original buffered mode
+            proc = subprocess.run(
+                cmd_to_run,
+                cwd=cwd_path,
+                capture_output=True,
+                text=True,
+                shell=shell,
+                input=input_data,
+                timeout=timeout,
+            )
+            stdout = proc.stdout or ""
+            stderr = proc.stderr or ""
+            returncode = proc.returncode
+
+            # Log lines post-run for buffered mode
+            for line in stdout.splitlines():
+                if _has_rich():
+                    runner.logger.info(f"[green]  {line}[/green]")
+                else:
+                    runner.logger.info(f"  {line}")
+            for line in stderr.splitlines():
+                if _has_rich():
+                    runner.logger.warning(f"[red]  {line}[/red]")
+                else:
+                    runner.logger.warning(f"  {line}")
+
+        success = returncode == 0
+        if success:
+            runner.logger.info(f"✓ {description} (code {returncode})")
+        else:
+            runner.logger.warning(f"✖ {description} (code {returncode})")
             if fatal:
                 runner.logger.error("Fatal command failure — aborting")
-                cleanup_and_exit(runner, proc.returncode or 1)
+                cleanup_and_exit(runner, returncode or 1)
 
         return {
             "success": success,
@@ -146,6 +200,14 @@ def run_command(
         }
 
     except subprocess.TimeoutExpired as e:
+        # Streaming mode: timeout already handled in wait block
+        if stream:
+            return {
+                "success": False,
+                "stdout": "",
+                "stderr": ""
+            }
+
         runner.logger.error(f"Timeout ({timeout}s) while running: {description}")
         if fatal:
             cleanup_and_exit(runner, 124)
@@ -154,6 +216,7 @@ def run_command(
             "stdout": "",
             "stderr": f"TimeoutExpired: {str(e)}"
         }
+
     except FileNotFoundError as e:
         runner.logger.error(f"Command not found for: {description}")
         if fatal:

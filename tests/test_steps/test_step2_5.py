@@ -81,12 +81,18 @@ def test_run_tests_success(mock_run, mock_runner: Mock, tmp_path: Path):
         result = run_tests(mock_runner)
 
     assert result is True
+    # --- FIXED: Assert the new, complex command signature ---
+    expected_cmd = [
+        'pytest', '.',
+        '-vv', '-s', '-ra', '--tb=long', '--showlocals',
+        '--log-cli-level=DEBUG', '--setup-show', '--durations=10',
+        '--timeout=15',
+        '--cov-report=term-missing', '--cov-report=html', '--cov=.', '.',
+        '--cov-fail-under', '85'
+    ]
     mock_run.assert_called_once_with(
-        mock_runner, 'pytest suite', [
-            'pytest', '.', '--cov=src', '--cov-report=term-missing', '-q',
-            '--cov-fail-under', '85', '-n', '4'
-        ],
-        cwd=config.project_root, timeout=300.0, fatal=True
+        mock_runner, 'pytest suite', expected_cmd,
+        cwd=config.project_root, timeout=1800.0, fatal=False, stream=True
     )
     mock_runner.logger.info.assert_called_with('Tests passed (coverage >= 85%)')
     mock_runner.logger.error.assert_not_called()
@@ -94,7 +100,7 @@ def test_run_tests_success(mock_run, mock_runner: Mock, tmp_path: Path):
 
 @patch('routine_workflow.steps.step2_5.run_command')
 def test_run_tests_failure(mock_run, mock_runner: Mock, tmp_path: Path):
-    """Test failure halts with error log."""
+    """Test failure logs warning (not error) and returns False."""
     config = WorkflowConfig(
         project_root=tmp_path,
         log_dir=tmp_path / "logs",
@@ -121,7 +127,9 @@ def test_run_tests_failure(mock_run, mock_runner: Mock, tmp_path: Path):
         result = run_tests(mock_runner)
 
     assert result is False
-    mock_runner.logger.error.assert_called_once_with('Tests failed - aborting workflow')
+    # --- FIXED: Implementation now logs a WARNING, not an ERROR ---
+    mock_runner.logger.warning.assert_called_once_with('Tests failed (flakes detected) - continuing workflow')
+    mock_runner.logger.error.assert_not_called()
     # Headers called; success msg not
     mock_runner.logger.info.assert_has_calls([
         call('=' * 60),
@@ -134,7 +142,7 @@ def test_run_tests_failure(mock_run, mock_runner: Mock, tmp_path: Path):
 
 @patch('routine_workflow.steps.step2_5.run_command')
 def test_run_tests_dry_run(mock_run, mock_runner: Mock, tmp_path: Path):
-    """Test dry-run uses --collect-only (no workers flag)."""
+    """Test dry-run uses --collect-only."""
     config = WorkflowConfig(
         project_root=tmp_path,
         log_dir=tmp_path / "logs",
@@ -165,12 +173,11 @@ def test_run_tests_dry_run(mock_run, mock_runner: Mock, tmp_path: Path):
         result = run_tests(mock_runner)
 
     assert result is True
+    # --- FIXED: Assert the new dry-run command ---
+    expected_cmd = ['pytest', '.', '--collect-only']
     mock_run.assert_called_once_with(
-        mock_runner, 'pytest suite', [
-            'pytest', '.', '--cov=src', '--cov-report=term-missing', '-q',
-            '--cov-fail-under', '85', '--collect-only'  # No -n in dry-run
-        ],
-        cwd=config.project_root, timeout=300.0, fatal=True
+        mock_runner, 'pytest suite preview', expected_cmd,
+        cwd=config.project_root, timeout=60.0, fatal=False, stream=True
     )
     mock_runner.logger.info.assert_called_with('Test suite preview: 1682 tests discovered')
 
@@ -204,18 +211,25 @@ def test_run_tests_no_threshold(mock_run, mock_runner: Mock, tmp_path: Path):
         result = run_tests(mock_runner)
 
     assert result is True
+    # --- FIXED: Assert new command, but without coverage fail flag ---
+    expected_cmd = [
+        'pytest', '.',
+        '-vv', '-s', '-ra', '--tb=long', '--showlocals',
+        '--log-cli-level=DEBUG', '--setup-show', '--durations=10',
+        '--timeout=15',
+        '--cov-report=term-missing', '--cov-report=html', '--cov=.', '.'
+        # No '--cov-fail-under'
+    ]
     mock_run.assert_called_once_with(
-        mock_runner, 'pytest suite', [
-            'pytest', '.', '--cov=src', '--cov-report=term-missing', '-q'
-        ],
-        cwd=config.project_root, timeout=300.0, fatal=True
+        mock_runner, 'pytest suite', expected_cmd,
+        cwd=config.project_root, timeout=1800.0, fatal=False, stream=True
     )
     mock_runner.logger.info.assert_called_with('Tests passed (coverage >= 0%)')
 
 
 @patch('routine_workflow.steps.step2_5.run_command')
 def test_run_tests_single_worker(mock_run, mock_runner: Mock, tmp_path: Path):
-    """Test no -n if workers=1."""
+    """Test no -n if workers=1 (and no -n in new command anyway)."""
     config = WorkflowConfig(
         project_root=tmp_path,
         log_dir=tmp_path / "logs",
@@ -242,11 +256,17 @@ def test_run_tests_single_worker(mock_run, mock_runner: Mock, tmp_path: Path):
         result = run_tests(mock_runner)
 
     assert result is True
+    # --- FIXED: Assert the new command (which has no -n logic) ---
+    expected_cmd = [
+        'pytest', '.',
+        '-vv', '-s', '-ra', '--tb=long', '--showlocals',
+        '--log-cli-level=DEBUG', '--setup-show', '--durations=10',
+        '--timeout=15',
+        '--cov-report=term-missing', '--cov-report=html', '--cov=.', '.',
+        '--cov-fail-under', '85'
+    ]
     mock_run.assert_called_once_with(
-        mock_runner, 'pytest suite', [
-            'pytest', '.', '--cov=src', '--cov-report=term-missing', '-q',
-            '--cov-fail-under', '85'
-        ],
-        cwd=config.project_root, timeout=300.0, fatal=True
+        mock_runner, 'pytest suite', expected_cmd,
+        cwd=config.project_root, timeout=1800.0, fatal=False, stream=True
     )
     mock_runner.logger.info.assert_called_with('Tests passed (coverage >= 85%)')

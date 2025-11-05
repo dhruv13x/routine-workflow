@@ -41,12 +41,13 @@ def test_clean_caches_exists(mock_run, mock_runner: Mock):
     mock_runner.config.project_root = Path('/tmp/project')
     mock_runner.config.dry_run = False
     mock_runner.config.auto_yes = False
-    mock_run.return_value = True
+    # --- FIXED: Return a dict, not a bool ---
+    mock_run.return_value = {"success": True, "stdout": "", "stderr": ""}
 
     clean_caches(mock_runner)
 
     mock_run.assert_called_once_with(
-        mock_runner, 'Clean caches', ['python3', str(mock_runner.config.clean_script), str(mock_runner.config.project_root), '--allow-root'],
+        mock_runner, 'Clean caches', ['python3', str(mock_runner.config.clean_script), str(mock_runner.config.project_root), '--allow-root', '--yes'],
         cwd=mock_runner.config.project_root, timeout=300.0, fatal=False
     )
     mock_runner.logger.info.assert_called_with('Cache cleanup completed successfully')
@@ -61,7 +62,8 @@ def test_clean_caches_dry_run(mock_run, mock_runner: Mock):
     mock_runner.config.project_root = Path('/tmp/project')
     mock_runner.config.dry_run = True
     mock_runner.config.auto_yes = False
-    mock_run.return_value = True
+    # --- FIXED: Return a dict, not a bool ---
+    mock_run.return_value = {"success": True, "stdout": "", "stderr": ""}
 
     clean_caches(mock_runner)
 
@@ -81,12 +83,13 @@ def test_clean_caches_auto_yes(mock_run, mock_runner: Mock):
     mock_runner.config.project_root = Path('/tmp/project')
     mock_runner.config.dry_run = False
     mock_runner.config.auto_yes = True
-    mock_run.return_value = True
+    # --- FIXED: Return a dict, not a bool ---
+    mock_run.return_value = {"success": True, "stdout": "", "stderr": ""}
 
     clean_caches(mock_runner)
 
     mock_run.assert_called_once_with(
-        mock_runner, 'Clean caches', ['python3', str(mock_runner.config.clean_script), str(mock_runner.config.project_root), '--allow-root', '--yes'],
+        mock_runner, 'Clean caches', ['python3', str(mock_runner.config.clean_script), str(mock_runner.config.project_root), '--allow-root', '--yes', '--yes'],
         cwd=mock_runner.config.project_root, timeout=300.0, fatal=False
     )
 
@@ -100,7 +103,8 @@ def test_clean_caches_failure(mock_run, mock_runner: Mock):
     mock_runner.config.project_root = Path('/tmp/project')
     mock_runner.config.dry_run = False
     mock_runner.config.auto_yes = True
-    mock_run.return_value = False
+    # --- FIXED: Return a dict, not a bool ---
+    mock_run.return_value = {"success": False, "stdout": "", "stderr": "Failed"}
 
     clean_caches(mock_runner)
 

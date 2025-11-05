@@ -31,8 +31,10 @@ def backup_project(runner: WorkflowRunner) -> bool:
     ]
     if config.dry_run:
         cmd.append('--dry-run')  # Tool-native preview
+    else:
+        cmd.append('--yes')  # Force non-interactive for archive creation
     if config.auto_yes:
-        cmd.append('--yes')  # Skip confirmations
+        cmd.append('--yes')  # Redundant but explicit for opt-in
 
     description = 'Backup project'
 
@@ -43,12 +45,12 @@ def backup_project(runner: WorkflowRunner) -> bool:
         fatal=False  # Critical but continue with warn for advisory steps
     )
 
-    if success:
+    if success["success"]:
         runner.logger.info('Backup completed successfully')
     else:
         runner.logger.warning('Backup failed or skipped')
 
-    if not success and config.fail_on_backup:
+    if not success["success"] and config.fail_on_backup:
         runner.logger.error('Backup failed + fail_on_backup - abort')
         return False
     return True

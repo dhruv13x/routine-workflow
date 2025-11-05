@@ -12,10 +12,50 @@ import argparse
 import importlib.util
 import textwrap
 from pathlib import Path
-from typing import List, Optional, Set
+from typing import List, Optional, Set, Dict
 
 from .config import WorkflowConfig
 from .runner import WorkflowRunner, STEP_NAMES
+
+# --- Step Alias Definitions ---
+
+# Maps all accepted aliases to their canonical step ID
+STEP_ALIASES: Dict[str, str] = {
+    "delete_dump": "step1",
+    "delete_dumps": "step1",
+    "reformat": "step2",
+    "reformat_code": "step2",
+    "pytest": "step2.5",
+    "test": "step2.5",
+    "tests": "step2.5",
+    "clean_caches": "step3",
+    "clean": "step3",
+    "security": "step3.5",
+    "scan": "step3.5",
+    "backup": "step4",
+    "create_dump": "step5",
+    "dump": "step5",
+    "dumps": "step5",
+    "git": "step6",
+    "commit": "step6",
+    "audit": "step6.5",
+    "dep_audit": "step6.5",
+}
+
+# For rich help text: maps canonical step ID to its primary alias
+PRIMARY_ALIASES: Dict[str, str] = {
+    "step1": "delete_dump",
+    "step2": "reformat",
+    "step2.5": "pytest",
+    "step3": "clean",
+    "step3.5": "security",
+    "step4": "backup",
+    "step5": "create_dump",
+    "step6": "git",
+    "step6.5": "audit",
+}
+
+# --- End Alias Definitions ---
 
 
 def _has_rich() -> bool:
@@ -60,26 +100,31 @@ def render_rich_help(console, parser: argparse.ArgumentParser) -> None:
 
     console.print(options_table)
 
-    # Steps Table (keys match STEP_NAMES with dots preserved)
+    # --- UPDATED Steps Table (now shows aliases) ---
     steps_table = Table(title="[bold magenta]Available Workflow Steps[/bold magenta]", show_header=True, header_style="bold cyan")
-    steps_table.add_column("Step", style="cyan", no_wrap=True)
+    steps_table.add_column("Alias (Name)", style="cyan", no_wrap=True)
+    steps_table.add_column("Step ID", style="dim", no_wrap=True)
     steps_table.add_column("Description", style="white")
+    
     step_descriptions = {
         "step1": "Delete old dumps (prune artifacts)",
-        "step2": "Reformat code (autoimport + black)",
-        "step2.5": "Optional: Run inline tests",
+        "step2": "Reformat code (ruff, autoimport, etc.)",
+        "step2.5": "Run pytest suite",
         "step3": "Clean caches (rm temps)",
-        "step3.5": "Optional: Security scan (bandit)",
+        "step3.5": "Security scan (bandit, safety)",
         "step4": "Backup project (tar/zip)",
-        "step5": "Generate dumps (create-dump integration)",
+        "step5": "Generate dumps (create-dump tool)",
         "step6": "Commit hygiene snapshot to git",
-        "step6.5": "Optional: Dep vulnerability audit",
+        "step6.5": "Dependency vulnerability audit (pip-audit)",
     }
-    for step in sorted(STEP_NAMES):
-        desc = step_descriptions.get(step, "Custom/undefined step")
-        steps_table.add_row(step, desc)
+    
+    for step_id in sorted(STEP_NAMES):
+        alias = PRIMARY_ALIASES.get(step_id, "N/A")
+        desc = step_descriptions.get(step_id, "Custom/undefined step")
+        steps_table.add_row(alias, step_id, desc)
 
     console.print(steps_table)
+    # --- End UPDATED Steps Table ---
 
     # Examples Panel (render the parser epilog as Markdown code blocks)
     epilog_lines = [line.rstrip() for line in (parser.epilog or "").splitlines() if line.strip()]
@@ -87,8 +132,9 @@ def render_rich_help(console, parser: argparse.ArgumentParser) -> None:
     for line in epilog_lines:
         if line.startswith('#') or line.lower().startswith('examples:'):
             continue
-        if line.startswith('routine-workflow'):
-            examples_content += f"- ```bash\n{line}\n```\n"
+        # --- FIXED: Use line.strip() to handle leading whitespace ---
+        if line.strip().startswith('routine-workflow'):
+            examples_content += f"- ```bash\n{line.strip()}\n```\n"
         else:
             examples_content += f"{line}\n"
 
@@ -107,15 +153,17 @@ def build_parser() -> argparse.ArgumentParser:
     This function is separated so tests can import and exercise the
     parser without invoking side effects.
     """
+    # --- UPDATED Epilog with new alias examples ---
     epilog = textwrap.dedent("""\
         Examples:
-          routine-workflow                              # Run with defaults (dry-run enabled)
-          routine-workflow -d                          # Explicit dry-run preview
-          routine-workflow -nd -y                      # Real run, auto-confirm
-          routine-workflow -s step2 step3 -w 4         # Selective steps, 4 workers
-          routine-workflow -t 1800 -p /path/to/proj    # Timeout + custom root
-          routine-workflow -es -eda                    # Enable security/audit gates (-es/-eda shortcuts)
-          routine-workflow --fail-on-backup --yes      # Exit on backup fail, auto-confirm
+          routine-workflow                              # Run all steps (dry-run default)
+          routine-workflow -nd -y                       # Real run, all steps
+          routine-workflow -s reformat clean backup     # Run reformat, clean, and backup steps
+          routine-workflow -s git -nd                   # Real run, only the 'git' step
+          routine-workflow -s pytest audit              # Run tests and dependency audit
+          routine-workflow -t 1800 -p /path/to/proj     # Timeout + custom root
+          routine-workflow -es -eda                     # Enable security/audit gates
+          routine-workflow --fail-on-backup --yes       # Exit on backup fail, auto-confirm
           routine-workflow --create-dump-run-cmd create-dump batch run --dirs custom .""")
 
     parser = argparse.ArgumentParser(
@@ -138,18 +186,15 @@ def build_parser() -> argparse.ArgumentParser:
                         help='Cleanup script path')
     parser.add_argument('--backup-script', type=Path, default=Path(os.getenv('BACKUP_SCRIPT', '/sdcard/tools/create_backup.py')),
                         help='Backup script path')
-    # env var name aligned with option name
     parser.add_argument('--create-dump-script', type=Path, default=Path(os.getenv('CREATE_DUMP_SCRIPT', '/sdcard/tools/run_create_dump.sh')),
                         help='Script used to create dumps')
 
-    # Boolean flags (fail-on-backup and git-push)
     parser.add_argument('--fail-on-backup', action='store_true',
                         default=(os.getenv('FAIL_ON_BACKUP', '0') == '1'),
                         help='Exit if backup step fails')
 
     parser.add_argument('-y', '--yes', action='store_true', help='Auto-confirm prompts')
 
-    # Dry-run defaults to enabled for safety; use -nd/--no-dry-run to perform real execution
     parser.add_argument('-d', '--dry-run', dest='dry_run', action='store_true', default=True,
                         help='Dry-run mode (default: enabled for safety)')
     parser.add_argument('-nd', '--no-dry-run', dest='dry_run', action='store_false',
@@ -165,7 +210,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument(
         '-s', '--steps', nargs='+', default=None,
-        help='Run specific steps only (space-separated, e.g., "step2 step3"). Supports custom order/repeats. Defaults to all.'
+        # --- UPDATED help text ---
+        help='Run specific steps or aliases (e.g., "git backup pytest"). Supports custom order/repeats. Defaults to all.'
     )
 
     parser.add_argument('--test-cov-threshold', type=int, default=85,
@@ -179,23 +225,44 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def validate_steps(steps: Optional[List[str]], available_steps: Set[str]) -> List[str]:
-    """Validate and filter requested steps; warn and exit on fully-invalid sets.
+# --- UPDATED validate_steps function ---
+def validate_steps(steps: Optional[List[str]], available_steps: Set[str], aliases: Dict[str, str]) -> List[str]:
+    """Validate and translate requested steps/aliases; warn and exit on fully-invalid sets.
 
-    Returns a list of valid steps. If the incoming `steps` is falsy (None or empty)
+    Returns a list of valid, translated canonical step names.
+    If the incoming `steps` is falsy (None or empty)
     the function returns an empty list which the runner interprets as "run all steps".
     """
     if not steps:
         return []
+    
+    translated_steps: List[str] = []
+    invalid_steps: List[str] = []
 
-    valid = [s for s in steps if s in available_steps]
-    invalid = [s for s in steps if s not in available_steps]
-    if invalid:
-        print(f"Warning: Skipping invalid steps: {', '.join(invalid)}", file=sys.stderr)
-        if not valid:
+    # --- REVISED LOGIC ---
+    for step_name in steps:
+        # 1. Check if it's a known alias (respects underscores)
+        if step_name in aliases:
+            translated_steps.append(aliases[step_name])
+        # 2. Check if it's a canonical name (with underscore or dot)
+        else:
+            normalized_name = step_name.replace('_', '.')
+            if normalized_name in available_steps:
+                translated_steps.append(normalized_name)
+            # 3. Otherwise, it's invalid
+            else:
+                invalid_steps.append(step_name) # Append the original name
+    # --- END REVISED LOGIC ---
+
+    if invalid_steps:
+        print(f"Warning: Skipping invalid steps: {', '.join(invalid_steps)}", file=sys.stderr)
+        if not translated_steps:
             # If the user specified steps but none are valid, bail out
+            print(f"Error: No valid steps provided. Valid aliases are: {', '.join(sorted(aliases.keys()))}", file=sys.stderr)
             sys.exit(1)
-    return valid
+    
+    return translated_steps
+# --- End UPDATED function ---
 
 
 def main() -> int:
@@ -219,8 +286,8 @@ def main() -> int:
     if args.dry_run:
         print("🛡️  Safety mode: Dry-run enabled (use -nd/--no-dry-run for real execution)")
 
-    # Validate and normalize steps
-    args.steps = validate_steps(args.steps, STEP_NAMES)
+    # --- UPDATED: Validate and translate steps using aliases ---
+    args.steps = validate_steps(args.steps, STEP_NAMES, STEP_ALIASES)
 
     cfg = WorkflowConfig.from_args(args)
     runner = WorkflowRunner(cfg, steps=args.steps)

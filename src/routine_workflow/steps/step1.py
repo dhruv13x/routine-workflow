@@ -22,26 +22,24 @@ def delete_old_dumps(runner: WorkflowRunner) -> None:
         runner.logger.warning('create-dump not found - skipping cleanup')
         return
 
-    # Build flags dynamically
-    cmd = ['create-dump', 'batch', 'clean', str(config.project_root)]  # root as str arg
+    # Build from config base; infer root via cwd (no positional path)
+    cmd = config.create_dump_clean_cmd[:]
     if config.dry_run:
         cmd.append('-d')  # Tool-native dry preview
     else:
         cmd.append('-nd')  # Force real run
-    if config.auto_yes:
-        cmd.append('-y')  # Skip confirmations
-    # Optional: Add -v for verbose if needed; defaults to true
+        cmd.append('-y')  # Force non-interactive for destructive clean
 
     description = 'Clean old code dumps'
 
     success = run_command(
         runner, description, cmd,
         cwd=config.project_root,
-        timeout=60.0,
+        timeout=300.0,  # Aligned with step3/5; ample for large archives
         fatal=False  # Advisory; continue on fail
     )
 
-    if success:
+    if success["success"]:
         runner.logger.info('Code-dump cleanup completed successfully')
     else:
         runner.logger.warning('Code-dump cleanup failed or skipped')

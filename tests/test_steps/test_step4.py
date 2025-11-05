@@ -44,7 +44,8 @@ def test_backup_dry_run(mock_datetime, mock_run, mock_runner: Mock):
     mock_runner.config.dry_run = True
     mock_runner.config.auto_yes = False
     mock_runner.config.project_root = Path('/tmp/project')
-    mock_run.return_value = True
+    # --- FIXED: Return a dict, not a bool ---
+    mock_run.return_value = {"success": True, "stdout": "", "stderr": ""}
 
     result = backup_project(mock_runner)
 
@@ -65,12 +66,13 @@ def test_backup_auto_yes(mock_datetime, mock_run, mock_runner: Mock):
     mock_runner.config.dry_run = False
     mock_runner.config.auto_yes = True
     mock_runner.config.project_root = Path('/tmp/project')
-    mock_run.return_value = True
+    # --- FIXED: Return a dict, not a bool ---
+    mock_run.return_value = {"success": True, "stdout": "", "stderr": ""}
 
     result = backup_project(mock_runner)
 
     mock_run.assert_called_once_with(
-        mock_runner, 'Backup project', ['python3', str(mock_runner.config.backup_script), '20251031_180000_routine', '--archive', '--yes'],
+        mock_runner, 'Backup project', ['python3', str(mock_runner.config.backup_script), '20251031_180000_routine', '--archive', '--yes', '--yes'],
         cwd=mock_runner.config.project_root, timeout=900.0, fatal=False
     )
     assert result is True
@@ -86,7 +88,8 @@ def test_backup_success_noninteractive(mock_datetime, mock_run, mock_runner: Moc
     mock_runner.config.dry_run = False
     mock_runner.config.auto_yes = True
     mock_runner.config.project_root = Path('/tmp/project')
-    mock_run.return_value = True
+    # --- FIXED: Return a dict, not a bool ---
+    mock_run.return_value = {"success": True, "stdout": "", "stderr": ""}
 
     result = backup_project(mock_runner)
 
@@ -105,7 +108,8 @@ def test_backup_failure_no_fail_on(mock_datetime, mock_run, mock_runner: Mock):
     mock_runner.config.auto_yes = True
     mock_runner.config.fail_on_backup = False
     mock_runner.config.project_root = Path('/tmp/project')
-    mock_run.return_value = False
+    # --- FIXED: Return a dict, not a bool ---
+    mock_run.return_value = {"success": False, "stdout": "", "stderr": "Failed"}
 
     result = backup_project(mock_runner)
 
@@ -124,7 +128,8 @@ def test_backup_fail_abort(mock_datetime, mock_run, mock_runner: Mock):
     mock_runner.config.auto_yes = True
     mock_runner.config.fail_on_backup = True
     mock_runner.config.project_root = Path('/tmp/project')
-    mock_run.return_value = False
+    # --- FIXED: Return a dict, not a bool ---
+    mock_run.return_value = {"success": False, "stdout": "", "stderr": "Failed"}
 
     result = backup_project(mock_runner)
 

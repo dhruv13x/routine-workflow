@@ -2,6 +2,7 @@
 
 """Unit tests for utils.py."""
 
+import sys
 import logging
 import subprocess
 from unittest.mock import patch, Mock, MagicMock, ANY
@@ -25,7 +26,7 @@ from pathlib import Path
 import pytest
 from logging import StreamHandler, Formatter
 
-from routine_workflow.utils import setup_logging, run_command
+from routine_workflow.utils import setup_logging, run_command, RotatingFileHandler
 from routine_workflow.config import WorkflowConfig
 
 
@@ -82,7 +83,6 @@ def test_setup_logging(temp_project_root: Path, capsys):
 
 def test_setup_logging_plain(temp_project_root: Path, capsys):
     """Test logging setup with rotation (plain branch)."""
-    # Use real config for accurate testing
     log_dir = temp_project_root / "logs"
     log_dir.mkdir(exist_ok=True)
     log_file = log_dir / "routine_test.log"
@@ -98,8 +98,16 @@ def test_setup_logging_plain(temp_project_root: Path, capsys):
         max_workers=4,
         workflow_timeout=0,
         exclude_patterns=[],
-        create_dump_clean_cmd=[],  # Explicit list for defaults
-        create_dump_run_cmd=[]  # Explicit list for defaults
+        # --- FIXED: Add missing fields ---
+        lock_ttl=3600,
+        create_dump_clean_cmd=[],
+        create_dump_run_cmd=[],
+        fail_on_backup=False,
+        auto_yes=False,
+        test_cov_threshold=85,
+        git_push=False,
+        enable_security=False,
+        enable_dep_audit=False
     )
 
     with patch('routine_workflow.utils._has_rich', return_value=False):
@@ -107,18 +115,23 @@ def test_setup_logging_plain(temp_project_root: Path, capsys):
 
     assert logger.name == "routine_workflow"
     assert len(logger.handlers) == 2  # File + StreamHandler
-    # Verify console handler uses Formatter
-    ch = next(h for h in logger.handlers if isinstance(h, logging.StreamHandler))
-    assert isinstance(ch.formatter, logging.Formatter)
+    
+    # --- FIXED: Find the console handler reliably ---
+    # It's the StreamHandler that is NOT a RotatingFileHandler
+    ch = next(h for h in logger.handlers if isinstance(h, StreamHandler) and not isinstance(h, RotatingFileHandler))
+    
+    assert isinstance(ch.formatter, Formatter)
+    
     # Trigger log to test emit and capture output
     logger.info("Test log after setup")
-    import sys
-    sys.stdout.flush()  # Force flush for capsys
-    sys.stderr.flush()  # Also flush stderr since StreamHandler defaults to it
+    sys.stdout.flush()
+    sys.stderr.flush()
     captured = capsys.readouterr()
-    assert "[2025-11-04" in captured.err  # Timestamped via format (in stderr)
-    assert "Test log after setup" in captured.err
     
+    # --- FIXED: Remove brittle date check, assert message content ---
+    assert "Test log after setup" in captured.err
+    assert "INFO: Test log after setup" in captured.err
+
 
 def test_setup_logging_rich(temp_project_root: Path):
     """Test logging setup with rotation (Rich branch)."""
@@ -339,6 +352,117 @@ def test_run_command_fatal_exception(mock_run, mock_cleanup, mock_runner: Mock):
 
     assert result["success"] is False
     mock_cleanup.assert_called_once_with(mock_runner, 1)
+
+
+@patch("routine_workflow.utils.threading.Thread")
+@patch("routine_workflow.utils.subprocess.Popen")
+@patch('routine_workflow.utils._has_rich', return_value=False)
+def test_run_command_stream_success(mock_has_rich, mock_popen, mock_thread, mock_runner: Mock):
+    """Test successful streaming of stdout and stderr."""
+    mock_proc = MagicMock()
+    mock_proc.stdout.readline.side_effect = ["out1\n", "out2\n", ""]
+    mock_proc.stderr.readline.side_effect = ["err1\n", ""]
+    mock_proc.wait.return_value = 0
+    mock_popen.return_value = mock_proc
+
+    # --- FIXED: Correct side_effect logic ---
+    def thread_side_effect(target, args, daemon=None):
+        thread_instance = MagicMock()
+        thread_instance.start.side_effect = lambda: target(*args)
+        return thread_instance
+    mock_thread.side_effect = thread_side_effect
+
+    result = run_command(mock_runner, "test stream", ["echo"], stream=True)
+
+    assert result["success"] is True
+    assert result["stdout"] == "" # Streamed, not captured
+    assert result["stderr"] == "" # Streamed, not captured
+
+    mock_popen.assert_called_once_with(
+        ["echo"],
+        cwd=str(mock_runner.config.project_root),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        stdin=None,
+        text=True,
+        shell=False,
+        bufsize=1,
+        universal_newlines=True
+    )
+    
+    # Check that logger was called with streamed output
+    mock_runner.logger.info.assert_any_call("  out1")
+    mock_runner.logger.info.assert_any_call("  out2")
+    mock_runner.logger.warning.assert_any_call("  err1")
+    mock_runner.logger.info.assert_any_call("✓ test stream (code 0)")
+
+
+@patch("routine_workflow.utils.threading.Thread")
+@patch("routine_workflow.utils.subprocess.Popen")
+@patch('routine_workflow.utils._has_rich', return_value=False)
+def test_run_command_stream_with_input(mock_has_rich, mock_popen, mock_thread, mock_runner: Mock):
+    """Test streaming with input_data."""
+    mock_proc = MagicMock()
+    mock_proc.stdout.readline.side_effect = [""]
+    mock_proc.stderr.readline.side_effect = [""]
+    mock_proc.wait.return_value = 0
+    mock_proc.stdin = MagicMock() # Mock stdin
+    mock_popen.return_value = mock_proc
+    
+    # --- FIXED: Correct side_effect logic ---
+    def thread_side_effect(target, args, daemon=None):
+        thread_instance = MagicMock()
+        thread_instance.start.side_effect = lambda: target(*args)
+        return thread_instance
+    mock_thread.side_effect = thread_side_effect
+
+    result = run_command(mock_runner, "test stream", ["cat"], stream=True, input_data="hello")
+
+    assert result["success"] is True
+    mock_popen.assert_called_once_with(
+        ["cat"],
+        cwd=str(mock_runner.config.project_root),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        stdin=subprocess.PIPE, # stdin should be PIPE
+        text=True,
+        shell=False,
+        bufsize=1,
+        universal_newlines=True
+    )
+    
+    # Check that stdin was written to and closed
+    mock_proc.stdin.write.assert_called_once_with("hello")
+    mock_proc.stdin.close.assert_called_once()
+
+
+@patch("routine_workflow.utils.threading.Thread")
+@patch("routine_workflow.utils.subprocess.Popen")
+@patch('routine_workflow.utils._has_rich', return_value=False)
+def test_run_command_stream_timeout(mock_has_rich, mock_popen, mock_thread, mock_runner: Mock):
+    """Test streaming with a timeout."""
+    mock_proc = MagicMock()
+    mock_proc.stdout.readline.side_effect = [""]
+    mock_proc.stderr.readline.side_effect = [""]
+    mock_proc.wait.side_effect = subprocess.TimeoutExpired("cmd", 0.1)
+    mock_popen.return_value = mock_proc
+    
+    # --- FIXED: Correct side_effect logic ---
+    def thread_side_effect(target, args, daemon=None):
+        thread_instance = MagicMock()
+        thread_instance.start.side_effect = lambda: target(*args)
+        return thread_instance
+    mock_thread.side_effect = thread_side_effect
+
+    result = run_command(mock_runner, "test stream", ["sleep", "10"], stream=True, timeout=0.1)
+
+    assert result["success"] is False
+    assert result["stdout"] == ""
+    assert result["stderr"] == "" # The exception is no longer leaked to stderr
+
+    mock_proc.wait.assert_called_once_with(timeout=0.1)
+    mock_proc.kill.assert_called_once()
+    mock_runner.logger.warning.assert_any_call("✖ test stream (code 124)")
 
 
 @patch("routine_workflow.utils.shutil.which")

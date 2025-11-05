@@ -18,10 +18,30 @@ def commit_hygiene(runner: WorkflowRunner) -> bool:
     runner.logger.info('=' * 60)
 
     config = runner.config
-    if config.dry_run or not config.git_push or not cmd_exists('git'):
-        runner.logger.info('Git skipped (dry-run, disabled, or missing git)')
+
+    if not cmd_exists('git'):
+        runner.logger.warning('git command not found, skipping step 6.')
+        return True  # Not a failure, just a skip
+
+    # Handle dry-run first by showing status
+    if config.dry_run:
+        runner.logger.info('DRY-RUN: Checking git status (no commit/push).')
+        # Use stream=True for live output, fatal=False as it's just a preview
+        run_command(
+            runner,
+            'Git status preview',
+            ['git', 'status'],
+            fatal=False,
+            stream=True
+        )
         return True
 
+    # Handle if the feature is disabled (in a real run)
+    if not config.git_push:
+        runner.logger.info('Git push is disabled via config, skipping step 6.')
+        return True
+
+    # --- Real Run Logic ---
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     commit_msg = f'routine_hygiene: {timestamp}'
 
@@ -30,20 +50,22 @@ def commit_hygiene(runner: WorkflowRunner) -> bool:
     cmd_push = ['git', 'push', '-u', 'origin', 'main']
 
     # Git add all changes
-    if not run_command(runner, 'git add', cmd_add, fatal=True):
+    # Note: run_command returns a dict, so we check ["success"]
+    if not run_command(runner, 'git add', cmd_add, fatal=True)["success"]:
         return False
 
     # Commit if changes present
-    commit_success = run_command(runner, 'git commit', cmd_commit, fatal=True)
+    # We set fatal=False here, as a failed commit (no changes) is not a fatal error.
+    commit_result = run_command(runner, 'git commit', cmd_commit, fatal=False)
+    commit_success = commit_result["success"]
 
-    # Push (always, if commit succeeded or no changes)
-    if commit_success or True:  # Push even on no-op commit for consistency
-        if not run_command(runner, 'git push', cmd_push, fatal=True):
-            return False
-
+    # Push only if the commit was successful
     if commit_success:
+        if not run_command(runner, 'git push', cmd_push, fatal=True)["success"]:
+            return False
         runner.logger.info(f'Hygiene snapshot committed & pushed: {commit_msg}')
     else:
         runner.logger.info('No changes to commit; snapshot up-to-date')
 
     return True
+    
