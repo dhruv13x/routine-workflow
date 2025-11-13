@@ -221,6 +221,9 @@ def build_parser() -> argparse.ArgumentParser:
                         help='Enable security scan in step 3.5 (default: false)')
     parser.add_argument('-eda', '--enable-dep-audit', action='store_true',
                         help='Enable dep audit in step 6.5 (default: false)')
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s 7.0.0", help="Show program's version number and exit"
+    )
 
     return parser
 
