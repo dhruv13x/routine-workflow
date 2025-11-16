@@ -1,4 +1,5 @@
-# routine_workflow/defaults.py
+# src/routine_workflow/defaults.py
+
 
 """Default exclude patterns for file discovery."""
 

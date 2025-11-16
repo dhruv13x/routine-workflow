@@ -1,3 +1,5 @@
+# src/routine_workflow/steps/step5.py
+
 """Step 5: Generate code dumps via external create-dump tool."""
 
 from __future__ import annotations

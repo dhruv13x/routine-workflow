@@ -1,3 +1,5 @@
+# tests/test_steps/test_step3.py
+
 """Tests for step3: Clean caches."""
 
 from unittest.mock import patch, Mock

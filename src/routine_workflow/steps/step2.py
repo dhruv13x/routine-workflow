@@ -1,3 +1,5 @@
+# src/routine_workflow/steps/step2.py
+
 """Step 2: Reformat code with tools."""
 
 from __future__ import annotations

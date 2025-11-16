@@ -16,6 +16,7 @@ from typing import List, Optional, Set, Dict
 
 from .config import WorkflowConfig
 from .runner import WorkflowRunner, STEP_NAMES
+from .banner import print_logo
 
 # --- Step Alias Definitions ---
 
@@ -269,6 +270,7 @@ def validate_steps(steps: Optional[List[str]], available_steps: Set[str], aliase
 
 
 def main() -> int:
+    print_logo()
     parser = build_parser()
 
     # Early --help interception so rich can render a prettier help screen

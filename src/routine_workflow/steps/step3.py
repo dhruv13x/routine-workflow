@@ -1,4 +1,5 @@
-# routine_workflow/steps/step3.py
+# src/routine_workflow/steps/step3.py
+
 
 """Step 3: Clean caches via external clean.py tool."""
 

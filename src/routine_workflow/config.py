@@ -1,4 +1,5 @@
-# routine_workflow/config.py
+# src/routine_workflow/config.py
+
 
 """Configuration dataclass for the workflow."""
 

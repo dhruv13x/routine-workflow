@@ -1,3 +1,5 @@
+# tests/test_steps/test_step6.py
+
 """Tests for step6: Commit hygiene snapshot to git."""
 
 from unittest.mock import Mock, patch, call

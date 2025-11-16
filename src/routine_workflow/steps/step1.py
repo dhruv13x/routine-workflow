@@ -1,4 +1,5 @@
-# routine_workflow/steps/step1.py
+# src/routine_workflow/steps/step1.py
+
 
 """Step 1: Delete old code dumps via external create-dump tool."""
 

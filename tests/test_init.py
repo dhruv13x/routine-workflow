@@ -1,3 +1,5 @@
+# tests/test_init.py
+
 """Tests for __init__.py (version fetching and exports)."""
 
 import importlib
