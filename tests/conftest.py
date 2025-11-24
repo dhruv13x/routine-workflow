@@ -50,9 +50,6 @@ def mock_config(temp_project_root: Path) -> Mock:
     config.log_dir = temp_project_root / "logs"
     config.log_dir.mkdir(exist_ok=True)
     config.log_file = config.log_dir / f"routine_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-    config.clean_script = temp_project_root / "clean.py"
-    config.backup_script = temp_project_root / "backup.py"
-    config.create_dump_script = temp_project_root / "dump.sh"
     
     # Mock lock_dir fully (avoids read-only Path methods)
     mock_lock_dir = Mock()
@@ -97,9 +94,6 @@ def mock_args() -> Mock:
     args.log_dir = Path('/tmp/logs')
     args.log_file = None
     args.lock_dir = Path('/tmp/lock')
-    args.clean_script = Path('/tmp/clean.py')
-    args.backup_script = Path('/tmp/backup.py')
-    args.create_dump_sh = Path('/tmp/dump.sh')
     args.fail_on_backup = False
     args.yes = False
     args.dry_run = True

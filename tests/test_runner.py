@@ -83,8 +83,6 @@ def test_run_success(mock_lock, mock_dep_audit, mock_commit, mock_generate, mock
 @patch('routine_workflow.runner.lock_context')
 def test_run_backup_fail(mock_lock, mock_config: WorkflowConfig):
     """Test abort on backup fail."""
-    mock_config.backup_script = Mock()
-    mock_config.backup_script.exists.return_value = True  # Force "exists"
     mock_config.fail_on_backup = True
 
     runner = WorkflowRunner(mock_config)
@@ -141,8 +139,6 @@ def test_workflow_timeout_alarm(
     """Test SIGALRM setup and teardown."""
     # Mock config attrs to prevent step failures
     mock_config.create_dump_run_cmd = ['create-dump', 'batch', 'run']
-    mock_config.backup_script = Mock(exists=False)  # Skip backup
-    mock_config.clean_script = Mock(exists=False)  # Skip clean
     mock_config.test_cov_threshold = 85
     mock_config.enable_security = False
     mock_config.git_push = False
@@ -353,17 +349,11 @@ def minimal_config(tmp_path: Path) -> WorkflowConfig:
     log_dir.mkdir(exist_ok=True)
     log_file = log_dir / "test.log"
     lock_dir = tmp_path / "lock"
-    clean_script = tmp_path / "clean.py"
-    backup_script = tmp_path / "backup.py"
-    create_dump_script = tmp_path / "dump.sh"
     return WorkflowConfig(
         project_root=tmp_path,
         log_dir=log_dir,
         log_file=log_file,
         lock_dir=lock_dir,
-        clean_script=clean_script,
-        backup_script=backup_script,
-        create_dump_script=create_dump_script,
         fail_on_backup=False,
         auto_yes=True,
         dry_run=False,

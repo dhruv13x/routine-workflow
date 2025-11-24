@@ -32,12 +32,9 @@ class WorkflowConfig:
     log_dir: Path
     log_file: Path
     lock_dir: Path
-    clean_script: Path
-    backup_script: Path
-    create_dump_script: Path
 
     # Defaults follow
-    lock_ttl: int = 3600  # Moved here; after all non-defaults
+    lock_ttl: int = 3600
     create_dump_clean_cmd: List[str] = field(default_factory=_default_clean_cmd)
     create_dump_run_cmd: List[str] = field(default_factory=_default_run_cmd)
 
@@ -89,10 +86,7 @@ class WorkflowConfig:
             log_dir=log_dir,
             log_file=log_file,
             lock_dir=args.lock_dir,
-            clean_script=args.clean_script,
-            backup_script=args.backup_script,
-            create_dump_script=args.create_dump_script,
-            lock_ttl=lock_ttl,  # Now after positional
+            lock_ttl=lock_ttl,
             create_dump_clean_cmd=create_dump_clean_cmd,
             create_dump_run_cmd=create_dump_run_cmd,
             fail_on_backup=args.fail_on_backup,

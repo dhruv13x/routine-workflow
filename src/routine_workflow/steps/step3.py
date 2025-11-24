@@ -14,27 +14,29 @@ from ..utils import cmd_exists, run_command
 
 def clean_caches(runner: WorkflowRunner) -> None:
     runner.logger.info('=' * 60)
-    runner.logger.info('STEP 3: Clean caches (via clean.py tool)')
+    runner.logger.info('STEP 3: Clean caches (via pypurge tool)')
     runner.logger.info('=' * 60)
 
     config = runner.config
-    if not config.clean_script.exists():
-        runner.logger.info('Script missing - skip')
-        return
 
-    if not cmd_exists('python3'):
-        runner.logger.warning('python3 not found - skipping cleanup')
+    if not cmd_exists('pypurge'):
+        runner.logger.warning('pypurge not found - skipping cleanup')
         return
 
     # Build flags dynamically
-    cmd = ['python3', str(config.clean_script), str(config.project_root)]  # root as first arg (per parser)
+    # Usage: pypurge [root] --allow-root [options]
+    cmd = ['pypurge', str(config.project_root)]
     cmd.append('--allow-root')  # Always for privileged access
+
     if config.dry_run:
-        cmd.append('--preview')  # Tool-native dry mode
+        cmd.append('-p')  # Preview mode
     else:
-        cmd.append('--yes')  # Force non-interactive for destructive cleanup
-    if config.auto_yes:
-        cmd.append('--yes')  # Redundant but explicit for opt-in
+        cmd.append('-y')  # Force non-interactive
+
+    # Redundant auto_yes check not strictly needed if we trust dry_run, 
+    # but good for consistency if user passes -y explicit to routine-workflow
+    if config.auto_yes and '-y' not in cmd: 
+        cmd.append('-y')
 
     description = 'Clean caches'
 

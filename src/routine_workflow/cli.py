@@ -183,13 +183,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--lock-ttl', type=int, default=int(os.getenv('LOCK_TTL', '3600')),
                         help='Lock eviction TTL in seconds (0=disable; default: 3600)')
 
-    parser.add_argument('--clean-script', type=Path, default=Path(os.getenv('CLEAN_SCRIPT', '/sdcard/tools/clean.py')),
-                        help='Cleanup script path')
-    parser.add_argument('--backup-script', type=Path, default=Path(os.getenv('BACKUP_SCRIPT', '/sdcard/tools/create_backup.py')),
-                        help='Backup script path')
-    parser.add_argument('--create-dump-script', type=Path, default=Path(os.getenv('CREATE_DUMP_SCRIPT', '/sdcard/tools/run_create_dump.sh')),
-                        help='Script used to create dumps')
-
     parser.add_argument('--fail-on-backup', action='store_true',
                         default=(os.getenv('FAIL_ON_BACKUP', '0') == '1'),
                         help='Exit if backup step fails')

@@ -24,9 +24,6 @@ def test_from_args_with_defaults(mock_resolve, mock_mkdir: Mock, mock_cpu: Mock,
     mock_args.project_root = Path('/tmp/test')
     mock_args.log_dir = Path('/tmp/logs')
     mock_args.lock_dir = Path('/tmp/lock')
-    mock_args.clean_script = Path('/tmp/clean.py')
-    mock_args.backup_script = Path('/tmp/backup.py')
-    mock_args.create_dump_script = Path('/tmp/dump.sh')
     mock_args.exclude_patterns = None  # Trigger default call
     mock_args.dry_run = True
     mock_args.yes = False
@@ -34,6 +31,11 @@ def test_from_args_with_defaults(mock_resolve, mock_mkdir: Mock, mock_cpu: Mock,
     mock_args.workers = None
     mock_args.workflow_timeout = 0
     mock_args.create_dump_run_cmd = None  # No override
+    mock_args.enable_security = False
+    mock_args.enable_dep_audit = False
+    mock_args.test_cov_threshold = 85
+    mock_args.git_push = False
+    mock_args.lock_ttl = 3600
 
     mock_resolve.return_value = Path('/tmp/test/resolved')
     mock_defaults.return_value = ['default/*']
@@ -44,7 +46,6 @@ def test_from_args_with_defaults(mock_resolve, mock_mkdir: Mock, mock_cpu: Mock,
     assert cfg.dry_run is True
     assert cfg.max_workers == 4  # min(8, mocked=4)
     assert cfg.workflow_timeout == 0
-    assert cfg.create_dump_script == mock_args.create_dump_script
     assert cfg.exclude_patterns == ['default/*']
     assert cfg.create_dump_run_cmd == ['create-dump', 'batch', 'run', '--dirs', '., packages, packages/platform_core, packages/telethon_adapter_kit, services, services/forwarder_bot']
     assert cfg.create_dump_clean_cmd == ['create-dump', 'batch', 'clean']
@@ -62,9 +63,6 @@ def test_from_args_with_override(mock_resolve, mock_mkdir: Mock, mock_defaults: 
     mock_args.project_root = Path('.')
     mock_args.log_dir = Path('.')
     mock_args.lock_dir = Path('.')
-    mock_args.clean_script = Path('.')
-    mock_args.backup_script = Path('.')
-    mock_args.create_dump_script = Path('.')
     mock_args.exclude_patterns = ['override/*']
     mock_args.dry_run = False
     mock_args.yes = True
@@ -72,6 +70,11 @@ def test_from_args_with_override(mock_resolve, mock_mkdir: Mock, mock_defaults: 
     mock_args.workers = 6
     mock_args.workflow_timeout = 3600
     mock_args.create_dump_run_cmd = ['create-dump', 'batch', 'run', '--dirs', 'custom']
+    mock_args.enable_security = False
+    mock_args.enable_dep_audit = False
+    mock_args.test_cov_threshold = 85
+    mock_args.git_push = False
+    mock_args.lock_ttl = 3600
     mock_defaults.return_value = []  # Ignored
 
     mock_resolve.return_value = Path('/tmp/custom')
@@ -104,9 +107,6 @@ def test_frozen_dataclass():
         log_dir=Path("."),
         log_file=Path("."),
         lock_dir=Path("."),
-        clean_script=Path("."),
-        backup_script=Path("."),
-        create_dump_script=Path("."),
         dry_run=False
     )
     with pytest.raises(AttributeError, match="cannot assign"):
@@ -121,9 +121,6 @@ def test_max_workers_default(mock_cpu: Mock):
         log_dir=Path("."),
         log_file=Path("."),
         lock_dir=Path("."),
-        clean_script=Path("."),
-        backup_script=Path("."),
-        create_dump_script=Path("."),
     )
     assert cfg.max_workers == 8  # min(8, 8)
 
@@ -136,9 +133,6 @@ def test_max_workers_override(mock_resolve, mock_cpu: Mock, mock_args: Mock):
     mock_args.project_root = Path('.')
     mock_args.log_dir = Path('.')
     mock_args.lock_dir = Path('.')
-    mock_args.clean_script = Path('.')
-    mock_args.backup_script = Path('.')
-    mock_args.create_dump_script = Path('.')
     mock_args.exclude_patterns = None
     mock_args.dry_run = False
     mock_args.yes = False
@@ -146,6 +140,11 @@ def test_max_workers_override(mock_resolve, mock_cpu: Mock, mock_args: Mock):
     mock_args.workers = 2
     mock_args.workflow_timeout = 0
     mock_args.create_dump_run_cmd = None
+    mock_args.enable_security = False
+    mock_args.enable_dep_audit = False
+    mock_args.test_cov_threshold = 85
+    mock_args.git_push = False
+    mock_args.lock_ttl = 3600
 
     mock_resolve.return_value = Path('/tmp/test')
 

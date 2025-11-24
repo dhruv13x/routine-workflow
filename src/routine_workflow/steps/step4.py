@@ -13,30 +13,31 @@ from ..utils import cmd_exists, run_command
 
 def backup_project(runner: WorkflowRunner) -> bool:
     runner.logger.info('=' * 60)
-    runner.logger.info('STEP 4: Backup project (via backup script)')
+    runner.logger.info('STEP 4: Backup project (via projectclone tool)')
     runner.logger.info('=' * 60)
 
     config = runner.config
-    if not config.backup_script.exists():
-        runner.logger.info('Script missing - skip')
-        return True
 
-    if not cmd_exists('python3'):
-        runner.logger.warning('python3 not found - skipping backup')
+    if not cmd_exists('projectclone'):
+        runner.logger.warning('projectclone not found - skipping backup')
         return True
 
     # Build flags dynamically; note: short_note required—use timestamped default
     import datetime
     short_note = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_routine")
+    
+    # Usage: projectclone <short_note> --archive [options]
     cmd = [
-        'python3', str(config.backup_script), short_note, '--archive'
+        'projectclone', short_note, '--archive'
     ]
+
     if config.dry_run:
-        cmd.append('--dry-run')  # Tool-native preview
+        cmd.append('--dry-run')
     else:
-        cmd.append('--yes')  # Force non-interactive for archive creation
-    if config.auto_yes:
-        cmd.append('--yes')  # Redundant but explicit for opt-in
+        cmd.append('--yes')  # Skip confirmation
+
+    if config.auto_yes and '--yes' not in cmd:
+        cmd.append('--yes')
 
     description = 'Backup project'
 

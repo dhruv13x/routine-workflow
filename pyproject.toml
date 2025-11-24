@@ -16,7 +16,10 @@ dependencies = [
   "argparse; python_version<'3.10'",
   "pytest>=8.0.0",
   "coverage[toml]>=7.5.0",
-  "typing-extensions>=4.0"
+  "typing-extensions>=4.0",
+  "pypurge",
+  "projectclone",
+  "create-dump"
 ]
 
 [project.optional-dependencies]
