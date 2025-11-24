@@ -511,9 +511,10 @@ def test_gather_py_files(mock_config: Mock, tmp_path: Path):
     assert all(f.name == "test.py" for f in files)
 
 
+@patch("routine_workflow.utils.cmd_exists", return_value=True)
 @patch("routine_workflow.utils.run_command")
 @patch("routine_workflow.utils.gather_py_files")
-def test_run_autoimport_parallel(mock_gather: Mock, mock_cmd: Mock, mock_runner: Mock):
+def test_run_autoimport_parallel(mock_gather: Mock, mock_cmd: Mock, mock_exists: Mock, mock_runner: Mock):
     """Test parallel autoimport."""
     mock_py_files = [Path("test.py")]
     mock_gather.return_value = mock_py_files
@@ -526,9 +527,10 @@ def test_run_autoimport_parallel(mock_gather: Mock, mock_cmd: Mock, mock_runner:
     mock_runner.logger.info.assert_any_call("Autoimport complete: 1/1 successful")
 
 
+@patch("routine_workflow.utils.cmd_exists", return_value=True)
 @patch("routine_workflow.utils.run_command")
 @patch("routine_workflow.utils.gather_py_files")
-def test_run_autoimport_parallel_no_files(mock_gather: Mock, mock_cmd: Mock, mock_runner: Mock):
+def test_run_autoimport_parallel_no_files(mock_gather: Mock, mock_cmd: Mock, mock_exists: Mock, mock_runner: Mock):
     """Test skip on no files."""
     mock_gather.return_value = []
     mock_runner.config.dry_run = False
@@ -538,9 +540,10 @@ def test_run_autoimport_parallel_no_files(mock_gather: Mock, mock_cmd: Mock, moc
     mock_runner.logger.info.assert_called_with("No files to process")
 
 
+@patch("routine_workflow.utils.cmd_exists", return_value=True)
 @patch("routine_workflow.utils.run_command")
 @patch("routine_workflow.utils.gather_py_files")
-def test_run_autoimport_parallel_dry_run(mock_gather: Mock, mock_cmd: Mock, mock_runner: Mock):
+def test_run_autoimport_parallel_dry_run(mock_gather: Mock, mock_cmd: Mock, mock_exists: Mock, mock_runner: Mock):
     """Test dry-run skip."""
     mock_py_files = [Path("test.py")]
     mock_gather.return_value = mock_py_files
@@ -551,12 +554,13 @@ def test_run_autoimport_parallel_dry_run(mock_gather: Mock, mock_cmd: Mock, mock
     mock_runner.logger.info.assert_called_with("DRY-RUN: Would process 1 files")
 
 
+@patch("routine_workflow.utils.cmd_exists", return_value=True)
 @patch("routine_workflow.utils.as_completed")
 @patch("routine_workflow.utils.ThreadPoolExecutor")
 @patch("routine_workflow.utils.run_command")
 @patch("routine_workflow.utils.gather_py_files")
 def test_run_autoimport_parallel_worker_exception(
-    mock_gather, mock_cmd, mock_executor, mock_as_completed, mock_runner: Mock
+    mock_gather, mock_cmd, mock_executor, mock_as_completed, mock_exists, mock_runner: Mock
 ):
     """Test worker exception handling."""
     mock_py_files = [Path("test.py")]
@@ -601,9 +605,10 @@ def test_setup_signal_handlers_invocation(mock_signal, mock_exit, mock_cleanup, 
     mock_exit.assert_not_called()  # Exception case not triggered
 
 
+@patch("routine_workflow.utils.cmd_exists", return_value=True)
 @patch("routine_workflow.utils.run_command")
 @patch("routine_workflow.utils.gather_py_files")
-def test_run_autoimport_parallel_completion(mock_gather: Mock, mock_cmd: Mock, mock_runner: Mock):
+def test_run_autoimport_parallel_completion(mock_gather: Mock, mock_cmd: Mock, mock_exists: Mock, mock_runner: Mock):
     """Test completion logger in success case."""
     mock_py_files = [Path("test.py")]
     mock_gather.return_value = mock_py_files
