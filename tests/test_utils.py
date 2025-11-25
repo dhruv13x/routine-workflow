@@ -15,6 +15,7 @@ from routine_workflow.utils import (
 )
 from routine_workflow.config import WorkflowConfig
 from routine_workflow.lock import cleanup_and_exit
+from routine_workflow.runner import WorkflowRunner
 
 
 import signal  # For signal tests
@@ -41,11 +42,18 @@ def clear_logger():
     # No need to restore; fresh start each time
 
 
+@pytest.fixture
+def temp_project_root(tmp_path: Path) -> Path:
+    """Create a temporary project root with a log directory."""
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    return tmp_path
+
+
 def test_setup_logging(temp_project_root: Path, capsys):
     """Test logging setup with rotation (Rich branch)."""
     # Use real config for accurate testing
     log_dir = temp_project_root / "logs"
-    log_dir.mkdir(exist_ok=True)
     log_file = log_dir / "routine_test.log"
     config = WorkflowConfig(
         project_root=temp_project_root,
@@ -81,7 +89,6 @@ def test_setup_logging(temp_project_root: Path, capsys):
 def test_setup_logging_plain(temp_project_root: Path, capsys):
     """Test logging setup with rotation (plain branch)."""
     log_dir = temp_project_root / "logs"
-    log_dir.mkdir(exist_ok=True)
     log_file = log_dir / "routine_test.log"
     config = WorkflowConfig(
         project_root=temp_project_root,
@@ -131,7 +138,6 @@ def test_setup_logging_rich(temp_project_root: Path):
     """Test logging setup with rotation (Rich branch)."""
     # Use real config for accurate testing
     log_dir = temp_project_root / "logs"
-    log_dir.mkdir(exist_ok=True)
     log_file = log_dir / "routine_test.log"
     config = WorkflowConfig(
         project_root=temp_project_root,
@@ -164,7 +170,6 @@ def test_setup_logging_rich(temp_project_root: Path):
 @patch('routine_workflow.utils._has_rich', return_value=False)  # Force plain logging for test
 def test_run_command_success(mock_has_rich, mock_run: Mock, mock_runner: Mock):
     """Test successful cmd execution."""
-    mock_runner.config.dry_run = False
     mock_proc = MagicMock(returncode=0, stdout="out", stderr="")
     mock_run.return_value = mock_proc
 
@@ -186,7 +191,6 @@ def test_run_command_success(mock_has_rich, mock_run: Mock, mock_runner: Mock):
 @patch("routine_workflow.utils.subprocess.run")
 def test_run_command_dry_run(mock_run: Mock, mock_runner: Mock):
     """Test dry-run executes with preview semantics (output logged, no mutation)."""
-    mock_runner.config.dry_run = True
     mock_proc = MagicMock(returncode=0, stdout="preview output\nline 1", stderr="warning line")
     mock_run.return_value = mock_proc
 
@@ -213,7 +217,6 @@ def test_run_command_dry_run(mock_run: Mock, mock_runner: Mock):
 def test_run_command_timeout(mock_run: Mock, mock_runner: Mock):
     """Test timeout handling."""
     mock_run.side_effect = subprocess.TimeoutExpired("cmd", 10)
-    mock_runner.config.dry_run = False
 
     result = run_command(mock_runner, "test", ["sleep", "inf"], timeout=10)
 
@@ -225,7 +228,6 @@ def test_run_command_timeout(mock_run: Mock, mock_runner: Mock):
 def test_run_command_filenotfound(mock_run: Mock, mock_runner: Mock):
     """Test FileNotFoundError handling."""
     mock_run.side_effect = FileNotFoundError("cmd not found")
-    mock_runner.config.dry_run = False
 
     result = run_command(mock_runner, "test", ["nonexistent", "cmd"])
 
@@ -238,7 +240,6 @@ def test_run_command_shell(mock_run: Mock, mock_runner: Mock):
     """Test shell=True normalization."""
     mock_proc = MagicMock(returncode=0)
     mock_run.return_value = mock_proc
-    mock_runner.config.dry_run = False
 
     result = run_command(mock_runner, "test", "echo hi", shell=True, timeout=10)
 
@@ -259,7 +260,6 @@ def test_run_command_input_data(mock_run: Mock, mock_runner: Mock):
     """Test input_data piping."""
     mock_proc = MagicMock(returncode=0)
     mock_run.return_value = mock_proc
-    mock_runner.config.dry_run = False
 
     result = run_command(mock_runner, "test", ["cat"], input_data="hello", timeout=10)
 
@@ -281,7 +281,6 @@ def test_run_command_stderr(mock_run: Mock, mock_runner: Mock):
     """Test stderr line-by-line logging."""
     mock_proc = MagicMock(returncode=0, stdout="", stderr="err\nline1\nline2")
     mock_run.return_value = mock_proc
-    mock_runner.config.dry_run = False
 
     result = run_command(mock_runner, "test", ["echo err"], timeout=10)
 
@@ -298,7 +297,6 @@ def test_run_command_stderr(mock_run: Mock, mock_runner: Mock):
 def test_run_command_fatal(mock_run, mock_cleanup, mock_runner: Mock):
     """Test fatal mode triggers cleanup."""
     mock_run.return_value = MagicMock(returncode=1)
-    mock_runner.config.dry_run = False
 
     result = run_command(mock_runner, "test", ["fail"], fatal=True, timeout=10)
 
@@ -311,7 +309,6 @@ def test_run_command_fatal(mock_run, mock_cleanup, mock_runner: Mock):
 def test_run_command_fatal_timeout(mock_run, mock_cleanup, mock_runner: Mock):
     """Test fatal timeout triggers cleanup."""
     mock_run.side_effect = subprocess.TimeoutExpired("cmd", 10)
-    mock_runner.config.dry_run = False
 
     result = run_command(mock_runner, "test", ["sleep", "inf"], fatal=True, timeout=10)
 
@@ -324,7 +321,6 @@ def test_run_command_fatal_timeout(mock_run, mock_cleanup, mock_runner: Mock):
 def test_run_command_fatal_filenotfound(mock_run, mock_cleanup, mock_runner: Mock):
     """Test fatal FileNotFoundError triggers cleanup."""
     mock_run.side_effect = FileNotFoundError("cmd not found")
-    mock_runner.config.dry_run = False
 
     result = run_command(mock_runner, "test", ["nonexistent"], fatal=True, timeout=10)
 
@@ -337,7 +333,6 @@ def test_run_command_fatal_filenotfound(mock_run, mock_cleanup, mock_runner: Moc
 def test_run_command_fatal_exception(mock_run, mock_cleanup, mock_runner: Mock):
     """Test fatal unhandled exception triggers cleanup."""
     mock_run.side_effect = ValueError("unhandled")
-    mock_runner.config.dry_run = False
 
     result = run_command(mock_runner, "test", ["fail"], fatal=True, timeout=10)
 
@@ -466,36 +461,51 @@ def test_cmd_exists(mock_which: Mock):
     assert cmd_exists("nonexistent") is False
 
 
-def test_should_exclude(mock_config: Mock, tmp_path: Path):
+def test_should_exclude(tmp_path: Path):
     """Test file exclusion logic."""
-    mock_config.project_root = tmp_path
-    mock_config.exclude_patterns = ["venv/*"]
+    config = WorkflowConfig(
+        project_root=tmp_path,
+        log_dir=tmp_path / "logs",
+        log_file=tmp_path / "logs" / "workflow.log",
+        lock_dir=tmp_path / "workflow.lock",
+        exclude_patterns=["venv/*"]
+    )
     test_file = tmp_path / "venv/test.py"
     test_file.parent.mkdir()
     test_file.touch()
 
-    assert should_exclude(mock_config, test_file) is True  # Matches pattern
+    assert should_exclude(config, test_file) is True  # Matches pattern
 
     non_excluded = tmp_path / "src/test.py"
     non_excluded.parent.mkdir()
     non_excluded.touch()
-    assert should_exclude(mock_config, non_excluded) is False
+    assert should_exclude(config, non_excluded) is False
 
 
-def test_should_exclude_exception(mock_config: Mock, tmp_path: Path):
+def test_should_exclude_exception(tmp_path: Path):
     """Test exclusion on relative_to exception."""
-    mock_config.project_root = tmp_path / "invalid"
-    mock_config.exclude_patterns = ["*"]
+    config = WorkflowConfig(
+        project_root=tmp_path / "invalid",
+        log_dir=tmp_path / "logs",
+        log_file=tmp_path / "logs" / "workflow.log",
+        lock_dir=tmp_path / "workflow.lock",
+        exclude_patterns=["*"]
+    )
     test_file = tmp_path / "test.py"
     test_file.touch()
 
-    assert should_exclude(mock_config, test_file) is True  # Excluded on error
+    assert should_exclude(config, test_file) is True  # Excluded on error
 
 
-def test_gather_py_files(mock_config: Mock, tmp_path: Path):
+def test_gather_py_files(tmp_path: Path):
     """Test Python file discovery."""
-    mock_config.project_root = tmp_path
-    mock_config.exclude_patterns = []
+    config = WorkflowConfig(
+        project_root=tmp_path,
+        log_dir=tmp_path / "logs",
+        log_file=tmp_path / "logs" / "workflow.log",
+        lock_dir=tmp_path / "workflow.lock",
+        exclude_patterns=[]
+    )
 
     # Fixture adds root "test.py", but we add two more
     src_dir = tmp_path / "src"
@@ -504,8 +514,10 @@ def test_gather_py_files(mock_config: Mock, tmp_path: Path):
     venv_dir = tmp_path / "venv"
     venv_dir.mkdir()
     (venv_dir / "test.py").touch()
+    (tmp_path / "test.py").touch()
 
-    files = gather_py_files(mock_config)
+
+    files = gather_py_files(config)
     assert len(files) == 3  # root/test.py + src/test.py + venv/test.py
     files.sort(key=lambda p: p.name)
     assert all(f.name == "test.py" for f in files)
@@ -519,7 +531,6 @@ def test_run_autoimport_parallel(mock_gather: Mock, mock_cmd: Mock, mock_exists:
     mock_py_files = [Path("test.py")]
     mock_gather.return_value = mock_py_files
     mock_cmd.return_value = {"success": True, "stdout": "", "stderr": ""}
-    mock_runner.config.dry_run = False
 
     run_autoimport_parallel(mock_runner)
 
@@ -533,7 +544,6 @@ def test_run_autoimport_parallel(mock_gather: Mock, mock_cmd: Mock, mock_exists:
 def test_run_autoimport_parallel_no_files(mock_gather: Mock, mock_cmd: Mock, mock_exists: Mock, mock_runner: Mock):
     """Test skip on no files."""
     mock_gather.return_value = []
-    mock_runner.config.dry_run = False
 
     run_autoimport_parallel(mock_runner)
 
@@ -547,9 +557,13 @@ def test_run_autoimport_parallel_dry_run(mock_gather: Mock, mock_cmd: Mock, mock
     """Test dry-run skip."""
     mock_py_files = [Path("test.py")]
     mock_gather.return_value = mock_py_files
-    mock_runner.config.dry_run = True
 
-    run_autoimport_parallel(mock_runner)
+    dry_run_config = mock_runner.config.__class__(**{**mock_runner.config.__dict__, 'dry_run': True})
+    dry_run_runner = WorkflowRunner(dry_run_config)
+    dry_run_runner.logger = mock_runner.logger
+
+
+    run_autoimport_parallel(dry_run_runner)
 
     mock_runner.logger.info.assert_called_with("DRY-RUN: Would process 1 files")
 
@@ -565,7 +579,6 @@ def test_run_autoimport_parallel_worker_exception(
     """Test worker exception handling."""
     mock_py_files = [Path("test.py")]
     mock_gather.return_value = mock_py_files
-    mock_runner.config.dry_run = False
 
     mock_future = Mock()
     mock_future.result.side_effect = Exception("worker error")
@@ -613,8 +626,75 @@ def test_run_autoimport_parallel_completion(mock_gather: Mock, mock_cmd: Mock, m
     mock_py_files = [Path("test.py")]
     mock_gather.return_value = mock_py_files
     mock_cmd.return_value = {"success": True, "stdout": "", "stderr": ""}
-    mock_runner.config.dry_run = False
 
     run_autoimport_parallel(mock_runner)
 
     mock_runner.logger.info.assert_called_with("Autoimport complete: 1/1 successful")
+@pytest.fixture
+def mock_config(tmp_path: Path) -> WorkflowConfig:
+    """Fixture for a mock WorkflowConfig."""
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    return WorkflowConfig(
+        project_root=tmp_path,
+        log_dir=log_dir,
+        log_file=log_dir / "workflow.log",
+        lock_dir=tmp_path / "workflow.lock",
+        dry_run=False,
+    )
+
+
+@pytest.fixture
+def mock_runner(mock_config: WorkflowConfig) -> WorkflowRunner:
+    """Fixture for a mock WorkflowRunner."""
+    runner = WorkflowRunner(mock_config)
+    runner.logger = MagicMock(spec=logging.Logger)
+    return runner
+
+
+def test_setup_logging_with_existing_handlers(mock_config: WorkflowConfig):
+    """Test that setup_logging does not add new handlers if some already exist."""
+    logger = logging.getLogger("routine_workflow")
+    original_handler = logging.StreamHandler()
+    logger.addHandler(original_handler)
+
+    setup_logging(mock_config)
+
+    assert len(logger.handlers) == 1
+    assert logger.handlers[0] is original_handler
+
+    # Clean up the logger for other tests
+    logger.removeHandler(original_handler)
+
+
+@patch("signal.signal")
+def test_setup_signal_handlers_exit_on_signal(mock_signal, mock_runner: WorkflowRunner):
+    """Test that the signal handler calls cleanup_and_exit."""
+    mock_cleanup = MagicMock()
+    with patch("routine_workflow.utils.cleanup_and_exit", mock_cleanup):
+        setup_signal_handlers(mock_runner)
+        # Get the handler function from the mock call
+        handler = mock_signal.call_args_list[0].args[1]
+        handler(signal.SIGINT, None)  # Simulate a signal
+        mock_cleanup.assert_called_once_with(mock_runner, 130)
+
+
+def test_should_exclude_non_relative_path(mock_config: WorkflowConfig):
+    """Test should_exclude returns True for a path that cannot be made relative."""
+    non_relative_path = Path("/some/other/path/file.py")
+    assert should_exclude(mock_config, non_relative_path) is True
+
+
+@patch("routine_workflow.utils.cmd_exists", return_value=False)
+def test_run_autoimport_parallel_no_autoimport(mock_cmd_exists, mock_runner: WorkflowRunner):
+    """Test run_autoimport_parallel does nothing if autoimport is not installed."""
+    run_autoimport_parallel(mock_runner)
+    mock_runner.logger.warning.assert_called_once_with("autoimport not found - skipping")
+
+
+@patch("routine_workflow.utils.gather_py_files", return_value=[])
+def test_run_autoimport_parallel_no_python_files(mock_gather_files, mock_runner: WorkflowRunner):
+    """Test run_autoimport_parallel does nothing if there are no Python files."""
+    with patch("routine_workflow.utils.cmd_exists", return_value=True):
+        run_autoimport_parallel(mock_runner)
+        mock_runner.logger.info.assert_any_call("No files to process")

@@ -263,7 +263,6 @@ def validate_steps(steps: Optional[List[str]], available_steps: Set[str], aliase
 
 
 def main() -> int:
-    print_logo()
     parser = build_parser()
 
     # Early --help interception so rich can render a prettier help screen
@@ -278,6 +277,7 @@ def main() -> int:
             parser.print_help()
         return 0
 
+    print_logo()
     # Normal parse
     args = parser.parse_args(cli_args)
 
