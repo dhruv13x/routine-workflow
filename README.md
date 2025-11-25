@@ -33,7 +33,7 @@
 
 # Routine Workflow
 
-Production-grade automation for repository hygiene: code reformatting, cache cleaning, backups and dumps orchestration.
+Production-grade automation for repository hygiene: code reformatting, cache cleaning, backups and dumps orchestration and much more.
 
 ---
 
@@ -64,134 +64,170 @@ This repository follows a `src/` layout and provides a CLI entrypoint, a datacla
 
 ---
 
-## Key Features
+## ✨ Key Features
 
-- Deterministic, configurable workflow orchestration  
-- Safe locking to prevent concurrent runs  
-- Dry-run mode for previewing operations  
-- Pluggable external dump tool integration (`create-dump`)  
-- Parallelizable tasks (autoimport / formatting) with configurable worker count  
-- Thorough test coverage and CI-friendly behavior  
+- **🛡️ Safe by Default**: Ships with dry-run enabled to prevent accidental changes.
+- **⚙️ Extensible Step Runner**: Run steps in any order, repeat them, or run a custom selection.
+- **🧩 Alias-Driven**: Use intuitive aliases like `reformat`, `clean`, or `pytest`.
+- **⚡ Parallel Execution**: Runs formatting and other tasks in parallel to save time.
+- **✅ Integrated Testing**: Run your `pytest` suite as part of the workflow.
+- **🔒 Concurrency Safe**: A robust file-based lock prevents multiple instances from running simultaneously.
+- **🔍 Security & Auditing**: Built-in steps for security scanning and dependency auditing.
+- **✍️ Git Integration**: Automatically commit and push a hygiene snapshot after a successful run.
 
 ---
 
 ## Installation
 
-Recommended: install inside a virtual environment.
+### Prerequisites
+
+- Python 3.9+
+- `pip` for package installation
+
+### From PyPI
 
 ```bash
-# From PyPI (if published)
 pip install routine-workflow
+```
 
-# From local source (editable)
-git clone git@github.com:dhruv13x/routine-workflow.git
+> **Note**
+> For an enhanced `--help` experience with rich formatting, install `rich`:
+> `pip install "routine-workflow[rich]"`
+
+### From Source (for development)
+
+```bash
+git clone https://github.com/dhruv13x/routine-workflow.git
 cd routine-workflow
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
-
+pip install -e .[dev]
+```
 
 ---
 
-Quick Start
+## 🚀 Quick Start
 
-Run the workflow with defaults (uses sensible local defaults for logging, lock dir, and the create-dump helper script):
+Run all default steps in dry-run mode (the safest default).
 
+```bash
 routine-workflow
-# OR if running the package directly
-python -m src.routine_workflow
+```
 
-Dry-run to preview actions without executing commands:
+To execute the workflow, disable dry-run mode:
 
-routine-workflow --dry-run
+```bash
+routine-workflow -nd -y
+```
 
-Run with increased verbosity (logs written to configured log_dir):
+Run only specific steps using their aliases:
 
-routine-workflow --project-root /path/to/project --log-dir /var/log/routine-workflow
+```bash
+routine-workflow -s reformat clean backup -nd
+```
 
-routine-workflow --steps step2 step3  # Run only formatting + cleaning, in that order
-routine-workflow --steps step5 step1 step3.5  # Custom order: dumps first, then prune + scan
-routine-workflow --steps step3 step3 step4  # Repeat cache clean before backup
+Run the integrated test suite and dependency audit:
 
-
----
-
-CLI Reference
-
-Run routine-workflow --help or refer to src/routine_workflow/cli.py for the most up-to-date options. Highlights:
-
---project-root PATH            Project root (default: $PROJECT_ROOT or current dir)
---log-dir PATH                 Directory for rotating logs (default: /sdcard/tools/logs)
---log-file PATH                Explicit log file path
---lock-dir PATH                Directory used for locking (default: /tmp/routine_workflow.lock)
---clean-script PATH            Path to clean helper script (default: /sdcard/tools/clean.py)
---backup-script PATH           Path to backup helper script (default: /sdcard/tools/create_backup.py)
---create-dump-script PATH      Path to external create-dump script (default: /sdcard/tools/run_create_dump.sh)
---create-dump-run-cmd ...      Override base run command for the create-dump tool
---fail-on-backup               Exit with error if backup fails
---yes                          Auto-confirm prompts
---dry-run                      Show actions without executing
---workers INT                  Parallel workers (default: min(8, CPU))
---workflow-timeout INT         Overall timeout in seconds (0 = disabled)
---exclude-patterns PATTERN ... File discovery exclude patterns
---steps STEP ...   Run specific steps only (space-separated; supports order/repeats, e.g., "step1 step3 step1"). Defaults to all.
+```bash
+routine-workflow -s pytest audit -nd
+```
 
 
 ---
 
-Configuration
+## ⚙️ Configuration & Advanced Usage
 
-Runtime configuration is encapsulated in WorkflowConfig (src/routine_workflow/config.py).
-You can supply configuration via CLI flags or environment variables.
+### CLI Arguments
 
-Defaults:
+This table provides a comprehensive list of all CLI arguments.
 
-LOG_DIR: /sdcard/tools/logs
+| Flag(s) | Description | Default |
+|---|---|---|
+| `-p`, `--project-root` | Project root path. | CWD |
+| `-l`, `--log-dir` | Directory to write logs. | `/sdcard/tools/logs` |
+| `--log-file` | Optional single log file path. | `None` |
+| `--lock-dir` | Lock directory to prevent concurrent runs. | `/tmp/routine_workflow.lock` |
+| `--lock-ttl` | Lock eviction TTL in seconds (0=disable). | `3600` |
+| `--fail-on-backup` | Exit if backup step fails. | `False` |
+| `-y`, `--yes` | Auto-confirm prompts. | `False` |
+| `-d`, `--dry-run` | Dry-run mode (default for safety). | `True` |
+| `-nd`, `--no-dry-run` | Disable dry-run (perform real execution). | `False` |
+| `-w`, `--workers` | Parallel workers for supported tasks. | `min(8, CPU)` |
+| `-t`, `--workflow-timeout` | Overall timeout in seconds (0=disable). | `0` |
+| `--exclude-patterns` | Optional override for file exclusion. | `None` |
+| `--create-dump-run-cmd`| Override the `create-dump` run command. | `None` |
+| `-s`, `--steps` | Run specific steps or aliases. | All steps |
+| `--test-cov-threshold`| Pytest coverage threshold (0=disable). | `85` |
+| `--git-push` | Enable git commit/push in the `git` step. | `False` |
+| `-es`, `--enable-security`| Enable security scan step. | `False` |
+| `-eda`, `--enable-dep-audit`| Enable dependency audit step. | `False` |
+| `--version` | Show program's version number and exit. | `N/A` |
 
-LOCK_DIR: /tmp/routine_workflow.lock
+### Workflow Steps
 
-CREATE_DUMP_SCRIPT: /sdcard/tools/run_create_dump.sh
+The workflow is composed of several steps, each of which can be run independently or as part of a larger sequence.
 
-WORKFLOW_TIMEOUT: 0 (disabled)
+| Step ID | Alias(es) | Description |
+|---|---|---|
+| `step1` | `delete_dump`, `delete_dumps` | Delete old dumps (prune artifacts). |
+| `step2` | `reformat`, `reformat_code` | Reformat code (ruff, autoimport, etc.). |
+| `step2.5`| `pytest`, `test`, `tests` | Run pytest suite. |
+| `step3` | `clean_caches`, `clean` | Clean caches (remove temporary files). |
+| `step3.5`| `security`, `scan` | Security scan (bandit, safety). |
+| `step4` | `backup` | Backup project (tar/zip). |
+| `step5` | `create_dump`, `dump`, `dumps`| Generate dumps using the `create-dump` tool. |
+| `step6` | `git`, `commit` | Commit hygiene snapshot to git. |
+| `step6.5`| `audit`, `dep_audit` | Dependency vulnerability audit (pip-audit). |
 
-
-Config exposes:
-
-create_dump_script: Path
-create_dump_clean_cmd: List[str]
-create_dump_run_cmd: List[str]
-fail_on_backup: bool
-auto_yes: bool
-dry_run: bool
-max_workers: int
-workflow_timeout: int
-exclude_patterns: List[str]
 
 
 ---
 
-Workflow Steps
+## 🏗️ Architecture
 
-The workflow orchestrates these steps (under src/routine_workflow/steps):
+The `routine-workflow` tool is designed with a clear separation of concerns, making it easy to maintain and extend.
 
-1. delete_old_dumps — prune old dumps
+### Directory Structure
 
+```
+src/routine_workflow/
+├── __init__.py
+├── banner.py           # ASCII art for the CLI
+├── cli.py              # CLI argument parsing and entrypoint
+├── config.py           #
+├── defaults.py         # Default values for configuration
+├── lock.py             # Concurrency locking mechanism
+├── runner.py           # Core workflow orchestration logic
+├── steps/              # Individual workflow steps
+│   ├── __init__.py
+│   ├── backup.py
+│   ├── clean.py
+│   └── ...
+└── utils.py            # Shared utility functions
+```
 
-2. reformat_code — run autoformatter / autoimport helpers
+### Core Logic Flow
 
+1.  **CLI Parsing**: The `cli.py` module parses all command-line arguments and builds a `WorkflowConfig` object.
+2.  **Runner Initialization**: The `WorkflowRunner` is initialized with the configuration and the requested steps.
+3.  **Locking**: The runner acquires a file-based lock to prevent concurrent runs.
+4.  **Step Execution**: The runner iterates through the requested steps and executes them in order.
+5.  **Logging**: Each step logs its progress to both the console and a rotating log file.
+6.  **Cleanup**: The runner releases the lock and exits with a status code.
 
-3. clean_caches — remove temporary caches and artifacts
+---
 
+## 🗺️ Roadmap
 
-4. backup_project — create a backup of the project
+- [ ] Add support for custom plugins/steps
+- [ ] Implement a more sophisticated logging system
+- [ ] Add more tests for edge cases
 
+---
 
-5. generate_dumps — call create-dump tool to produce project dumps
+## 🤝 Contributing & License
 
+Contributions are welcome! Please see the `CONTRIBUTING.md` file for more details.
 
-
-Each step is idempotent and resilient to failures; fail_on_backup controls whether workflow aborts on backup failure.
-
+This project is licensed under the terms of the **MIT** license.
 
 ---
 
