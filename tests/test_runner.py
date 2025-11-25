@@ -392,3 +392,32 @@ def test_runner_repeat_step(mock_step3, minimal_config: WorkflowConfig):
     # Assert repeated invocation
     assert mock_step3.call_count == 2
     assert all(call.args[0] is runner for call in mock_step3.mock_calls)  # Same runner instance
+
+def test_run_invalid_steps(minimal_config: WorkflowConfig):
+    """Test that the runner handles invalid steps."""
+    runner = WorkflowRunner(minimal_config, steps=["invalid_step"])
+    with patch.object(runner, 'logger') as mock_log:
+        result = runner.run()
+    assert result == 0
+    mock_log.warning.assert_any_call("Some steps skipped due to invalid names")
+    mock_log.warning.assert_any_call("No valid steps specified; exiting early")
+
+@patch("routine_workflow.runner.backup_project", return_value=False)
+def test_run_backup_fail_and_fail_on_backup(mock_backup, minimal_config: WorkflowConfig):
+    """Test that the runner exits with code 2 if backup fails and fail_on_backup is True."""
+
+    config = WorkflowConfig(**{**minimal_config.__dict__, 'fail_on_backup': True})
+    runner = WorkflowRunner(config)
+
+    with patch.object(runner, 'logger') as mock_log, \
+         patch("routine_workflow.runner.delete_old_dumps"), \
+         patch("routine_workflow.runner.reformat_code"), \
+         patch("routine_workflow.runner.run_tests"), \
+         patch("routine_workflow.runner.clean_caches"), \
+         patch("routine_workflow.runner.security_scan"), \
+         patch("routine_workflow.runner.generate_dumps"), \
+         patch("routine_workflow.runner.commit_hygiene"), \
+         patch("routine_workflow.runner.dep_audit"):
+        result = runner.run()
+    assert result == 2
+    mock_log.error.assert_any_call("Backup failed; aborting workflow per config")
