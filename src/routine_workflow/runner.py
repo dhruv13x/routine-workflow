@@ -24,6 +24,7 @@ from .steps import (
 )
 from .utils import setup_logging, setup_signal_handlers
 from .constants import STEP_NAMES
+from .errors import WorkflowError, format_error
 
 
 class WorkflowRunner:
@@ -111,6 +112,9 @@ class WorkflowRunner:
                 return 0
             except SystemExit:
                 raise
+            except WorkflowError as e:
+                self.logger.error(format_error(e))
+                return 1
             except Exception as e:
                 self.logger.exception(f"Workflow error: {e}")
                 return 1
