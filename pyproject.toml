@@ -83,7 +83,7 @@ addopts = [
   "--cov-report=term-missing:skip-covered",
   "--cov-report=html",
   "--cov-report=xml",
-  "--cov-fail-under=85",
+  "--cov-fail-under=95",
 ]
 
 log_cli = true
@@ -94,6 +94,6 @@ branch = true
 source = ["src/routine_workflow"]
 
 [tool.coverage.report]
-fail_under = 85
+fail_under = 95
 show_missing = true
 skip_covered = true

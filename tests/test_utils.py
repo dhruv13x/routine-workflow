@@ -5,6 +5,7 @@
 import sys
 import logging
 import subprocess
+import threading
 from unittest.mock import patch, Mock, MagicMock, ANY
 from pathlib import Path
 import pytest
@@ -630,6 +631,7 @@ def test_run_autoimport_parallel_completion(mock_gather: Mock, mock_cmd: Mock, m
     run_autoimport_parallel(mock_runner)
 
     mock_runner.logger.info.assert_called_with("Autoimport complete: 1/1 successful")
+
 @pytest.fixture
 def mock_config(tmp_path: Path) -> WorkflowConfig:
     """Fixture for a mock WorkflowConfig."""
@@ -698,3 +700,57 @@ def test_run_autoimport_parallel_no_python_files(mock_gather_files, mock_runner:
     with patch("routine_workflow.utils.cmd_exists", return_value=True):
         run_autoimport_parallel(mock_runner)
         mock_runner.logger.info.assert_any_call("No files to process")
+
+
+def test_cmd_exists_shutil_failure():
+    """Test cmd_exists when shutil.which returns None."""
+    with patch("shutil.which", return_value=None):
+        assert cmd_exists("nonexistent_command_12345") is False
+
+def test_run_command_timeout_streaming(tmp_path):
+    """Test run_command in streaming mode with timeout."""
+    runner = MagicMock(spec=WorkflowRunner)
+    runner.config = MagicMock()
+    runner.config.project_root = tmp_path
+    runner.logger = MagicMock()
+
+    # We use a command that sleeps longer than the timeout
+    # On linux 'sleep 2'
+    result = run_command(
+        runner,
+        "Timeout Test",
+        ["sleep", "2"],
+        timeout=0.1,
+        stream=True
+    )
+
+    assert result["success"] is False
+    assert result["stderr"] == "" # Stream mode swallows stderr on timeout return in the catch block we saw
+
+def test_should_exclude_relativize_failure(tmp_path):
+    """Test should_exclude when relative_to fails (different drives or outside root)."""
+    runner_config = MagicMock()
+    runner_config.project_root = tmp_path
+
+    # We can mock Path.relative_to to raise ValueError
+    with patch("pathlib.Path.relative_to", side_effect=ValueError("Not relative")):
+        # Pass a dummy path
+        assert should_exclude(runner_config, Path("/some/other/path")) is True
+
+def test_should_exclude_pattern_match(tmp_path):
+    """Test should_exclude with exact match and glob match."""
+    runner_config = MagicMock()
+    runner_config.project_root = tmp_path
+    runner_config.exclude_patterns = ["*.txt", "exclude_dir/*"]
+
+    # Match *.txt
+    file1 = tmp_path / "test.txt"
+    assert should_exclude(runner_config, file1) is True
+
+    # Match exclude_dir/*
+    file2 = tmp_path / "exclude_dir/file.py"
+    assert should_exclude(runner_config, file2) is True
+
+    # No match
+    file3 = tmp_path / "src/main.py"
+    assert should_exclude(runner_config, file3) is False

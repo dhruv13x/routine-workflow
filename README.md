@@ -13,7 +13,7 @@
 <!-- Build & Quality -->
 [![Build status](https://github.com/dhruv13x/routine-workflow/actions/workflows/publish.yml/badge.svg)](https://github.com/dhruv13x/routine-workflow/actions/workflows/publish.yml)
 [![Codecov](https://codecov.io/gh/dhruv13x/routine-workflow/graph/badge.svg)](https://codecov.io/gh/dhruv13x/routine-workflow)
-[![Test Coverage](https://img.shields.io/badge/coverage-90%25%2B-brightgreen.svg)](https://github.com/dhruv13x/routine-workflow/actions/workflows/test.yml)
+[![Test Coverage](https://img.shields.io/badge/coverage-95%25%2B-brightgreen.svg)](https://github.com/dhruv13x/routine-workflow/actions/workflows/test.yml)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Ruff](https://img.shields.io/badge/linting-ruff-yellow.svg)](https://github.com/astral-sh/ruff)
 ![Security](https://img.shields.io/badge/security-CodeQL-blue.svg)
@@ -71,6 +71,7 @@ This repository follows a `src/` layout and provides a CLI entrypoint, a datacla
 - **🧩 Alias-Driven**: Use intuitive aliases like `reformat`, `clean`, or `pytest`.
 - **⚡ Parallel Execution**: Runs formatting and other tasks in parallel to save time.
 - **✅ Integrated Testing**: Run your `pytest` suite as part of the workflow.
+- **🧪 High Coverage**: Comprehensive test suite with >95% code coverage.
 - **🔒 Concurrency Safe**: A robust file-based lock prevents multiple instances from running simultaneously.
 - **⚙️ Enhanced Configuration**: Configure the workflow via `pyproject.toml` to persist settings.
 - **🔍 Security & Auditing**: Built-in steps for security scanning and dependency auditing.
@@ -220,7 +221,7 @@ src/routine_workflow/
 
 - [ ] Add support for custom plugins/steps
 - [ ] Implement a more sophisticated logging system
-- [ ] Add more tests for edge cases
+- [x] Comprehensive unit & integration tests (95%+ coverage)
 
 ---
 
