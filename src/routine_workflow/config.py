@@ -47,6 +47,12 @@ class WorkflowConfig:
     enable_security: bool = False
     enable_dep_audit: bool = False
 
+    # logging
+    log_level: str = "INFO"
+    log_format: str = "text"
+    log_rotation_max_bytes: int = 5 * 1024 * 1024
+    log_rotation_backup_count: int = 5
+
     # overall workflow timeout in seconds (0 => disabled)
     workflow_timeout: int = 0
 
@@ -81,6 +87,12 @@ class WorkflowConfig:
         git_push = os.getenv('GIT_PUSH', '0') == '1' or args.git_push
         lock_ttl = args.lock_ttl if hasattr(args, 'lock_ttl') else int(os.getenv('LOCK_TTL', '3600'))
 
+        # Logging from args or env
+        log_level = getattr(args, 'log_level', os.getenv('LOG_LEVEL', 'INFO'))
+        log_format = getattr(args, 'log_format', os.getenv('LOG_FORMAT', 'text'))
+        log_rotation_max_bytes = getattr(args, 'log_rotation_max_bytes', int(os.getenv('LOG_ROTATION_MAX_BYTES', str(5*1024*1024))))
+        log_rotation_backup_count = getattr(args, 'log_rotation_backup_count', int(os.getenv('LOG_ROTATION_BACKUP_COUNT', '5')))
+
         return cls(
             project_root=args.project_root.resolve(),
             log_dir=log_dir,
@@ -99,4 +111,8 @@ class WorkflowConfig:
             git_push=git_push,
             enable_security=enable_security,
             enable_dep_audit=enable_dep_audit,
+            log_level=log_level,
+            log_format=log_format,
+            log_rotation_max_bytes=log_rotation_max_bytes,
+            log_rotation_backup_count=log_rotation_backup_count,
         )

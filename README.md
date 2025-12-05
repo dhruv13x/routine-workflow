@@ -41,6 +41,7 @@ Production-grade automation for repository hygiene: code reformatting, cache cle
 
 - Overview  
 - Key Features  
+- **Advanced Logging:** Configurable JSON output, rotation, and verbosity levels.
 - Installation  
 - Quick Start  
 - CLI Reference  
@@ -65,6 +66,7 @@ This repository follows a `src/` layout and provides a CLI entrypoint, a datacla
 ---
 
 ## ✨ Key Features
+- **Advanced Logging:** Configurable JSON output, rotation, and verbosity levels.
 
 - **🛡️ Safe by Default**: Ships with dry-run enabled to prevent accidental changes.
 - **⚙️ Extensible Step Runner**: Run steps in any order, repeat them, or run a custom selection.
