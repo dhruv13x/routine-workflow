@@ -19,6 +19,7 @@ from .config_loader import load_config
 from .runner import WorkflowRunner
 from .banner import print_logo
 from .constants import STEP_NAMES, STEP_ALIASES, PRIMARY_ALIASES
+from .prompt_service import run_interactive_mode
 
 
 def _has_rich() -> bool:
@@ -115,6 +116,9 @@ def build_parser(defaults: Optional[Dict[str, Any]] = None) -> argparse.Argument
                         help='Enable security scan in step 3.5 (default: false)')
     parser.add_argument('-eda', '--enable-dep-audit', action='store_true',
                         help='Enable dep audit in step 6.5 (default: false)')
+
+    parser.add_argument('-i', '--interactive', action='store_true',
+                        help='Enter interactive configuration mode')
 
     # Apply defaults for boolean flags if they exist in config
     # We do this by constructing a default map for parser.set_defaults, but since we are building parser here
@@ -223,6 +227,9 @@ def main() -> int:
     print_logo()
     # Normal parse
     args = parser.parse_args(cli_args)
+
+    if args.interactive:
+        args = run_interactive_mode(args)
 
     if args.dry_run:
         print("🛡️  Safety mode: Dry-run enabled (use -nd/--no-dry-run for real execution)")
