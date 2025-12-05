@@ -18,7 +18,7 @@ A visionary, integration-oriented plan that categorizes features from **"Core Es
 - [x] **Git Integration**: Automatically commit and push hygiene snapshots.
 - [x] **Concurrency Safety**: A file-based lock to prevent multiple instances from running simultaneously.
 - [x] **Enhanced Configuration**: Support for `.toml` or `.yaml` configuration files to manage settings.
-- [ ] **Comprehensive Unit & Integration Tests**: Increase test coverage to 95%+ and add more edge-case testing.
+- [x] **Comprehensive Unit & Integration Tests**: Increase test coverage to 95%+ and add more edge-case testing.
 
 ---
 
