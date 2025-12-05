@@ -23,12 +23,7 @@ from .steps import (
     dep_audit,  # Step 6.5
 )
 from .utils import setup_logging, setup_signal_handlers
-
-
-STEP_NAMES = {
-    "step1", "step2", "step2.5", "step3", "step3.5",
-    "step4", "step5", "step6", "step6.5"
-}
+from .constants import STEP_NAMES
 
 
 class WorkflowRunner:

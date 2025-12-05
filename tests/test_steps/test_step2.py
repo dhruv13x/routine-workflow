@@ -7,12 +7,11 @@ import pytest
 
 from routine_workflow.steps.step2 import reformat_code
 from routine_workflow.runner import WorkflowRunner
-from routine_workflow.utils import cmd_exists, run_command, run_autoimport_parallel
 
 
-@patch("routine_workflow.steps.step2.run_autoimport_parallel")
-@patch("routine_workflow.steps.step2.cmd_exists")
-@patch("routine_workflow.steps.step2.run_command")
+@patch("routine_workflow.formatting_service.run_autoimport_parallel")
+@patch("routine_workflow.formatting_service.cmd_exists")
+@patch("routine_workflow.formatting_service.run_command")
 def test_reformat_code_full(mock_cmd: Mock, mock_exists: Mock, mock_autoimport: Mock, mock_runner: Mock):
     """Test all tools called if available."""
     mock_exists.side_effect = lambda x: x != "missing"
@@ -26,7 +25,7 @@ def test_reformat_code_full(mock_cmd: Mock, mock_exists: Mock, mock_autoimport: 
     mock_runner.logger.info.assert_any_call("Reformat complete")
 
 
-@patch("routine_workflow.steps.step2.cmd_exists")
+@patch("routine_workflow.formatting_service.cmd_exists")
 def test_reformat_code_skips_missing(mock_exists: Mock, mock_runner: Mock):
     """Test skips if tools missing."""
     mock_exists.return_value = False
@@ -37,9 +36,9 @@ def test_reformat_code_skips_missing(mock_exists: Mock, mock_runner: Mock):
     mock_runner.logger.info.assert_any_call("autoimport not installed - skipping")
 
 
-@patch("routine_workflow.steps.step2.run_autoimport_parallel")
-@patch("routine_workflow.steps.step2.cmd_exists")
-@patch("routine_workflow.steps.step2.run_command")
+@patch("routine_workflow.formatting_service.run_autoimport_parallel")
+@patch("routine_workflow.formatting_service.cmd_exists")
+@patch("routine_workflow.formatting_service.run_command")
 def test_reformat_code_dry_run(mock_cmd: Mock, mock_exists: Mock, mock_autoimport: Mock, mock_runner: Mock):
     """Test dry-run skips all tool execution."""
     mock_runner.config.dry_run = True
@@ -52,9 +51,9 @@ def test_reformat_code_dry_run(mock_cmd: Mock, mock_exists: Mock, mock_autoimpor
     mock_runner.logger.info.assert_any_call('DRY-RUN: Skipping reformat (tools lack native preview)')
 
 
-@patch("routine_workflow.steps.step2.run_autoimport_parallel")
-@patch("routine_workflow.steps.step2.cmd_exists")
-@patch("routine_workflow.steps.step2.run_command")
+@patch("routine_workflow.formatting_service.run_autoimport_parallel")
+@patch("routine_workflow.formatting_service.cmd_exists")
+@patch("routine_workflow.formatting_service.run_command")
 def test_reformat_code_ruff_only(mock_cmd: Mock, mock_exists: Mock, mock_autoimport: Mock, mock_runner: Mock):
     """Test ruff-only sequence if other tools missing."""
     mock_exists.side_effect = lambda x: x == 'ruff'
@@ -69,9 +68,9 @@ def test_reformat_code_ruff_only(mock_cmd: Mock, mock_exists: Mock, mock_autoimp
     mock_runner.logger.info.assert_any_call("Reformat complete")
 
 
-@patch("routine_workflow.steps.step2.run_autoimport_parallel")
-@patch("routine_workflow.steps.step2.cmd_exists")
-@patch("routine_workflow.steps.step2.run_command")
+@patch("routine_workflow.formatting_service.run_autoimport_parallel")
+@patch("routine_workflow.formatting_service.cmd_exists")
+@patch("routine_workflow.formatting_service.run_command")
 def test_reformat_code_autoimport_dry_run(mock_cmd: Mock, mock_exists: Mock, mock_autoimport: Mock, mock_runner: Mock):
     """Test autoimport dry-run within reformat (real-run case)."""
     mock_runner.config.dry_run = True
@@ -83,9 +82,9 @@ def test_reformat_code_autoimport_dry_run(mock_cmd: Mock, mock_exists: Mock, moc
     mock_cmd.call_count == 0  # No run_command for autoimport
 
 
-@patch("routine_workflow.steps.step2.run_autoimport_parallel")
-@patch("routine_workflow.steps.step2.cmd_exists")
-@patch("routine_workflow.steps.step2.run_command")
+@patch("routine_workflow.formatting_service.run_autoimport_parallel")
+@patch("routine_workflow.formatting_service.cmd_exists")
+@patch("routine_workflow.formatting_service.run_command")
 def test_reformat_code_autoimport_real_run(mock_cmd: Mock, mock_exists: Mock, mock_autoimport: Mock, mock_runner: Mock):
     """Test autoimport execution in real-run (with internal dry logic)."""
     mock_runner.config.dry_run = False
