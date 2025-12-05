@@ -37,6 +37,7 @@ class WorkflowRunner:
         self.steps = steps
         self._lock_acquired = False
         self._pid_path = None
+        # Must verify config is a WorkflowConfig to avoid TypeError when accessing attrs in setup_logging
         self.logger = setup_logging(config)
         setup_signal_handlers(self)
 

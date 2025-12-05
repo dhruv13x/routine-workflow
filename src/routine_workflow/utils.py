@@ -93,9 +93,11 @@ def setup_logging(config: WorkflowConfig) -> logging.Logger:
             ch = RichHandler(
                 show_level=True,
                 show_path=False,
-                omit_repeated_times=True,
-                level=level
+                omit_repeated_times=True
             )
+            # We must set the level on the handler instance, not in the constructor
+            # to remain compatible with tests that mock the constructor
+            ch.setLevel(level)
         else:
             ch = logging.StreamHandler()
             fmt = logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
