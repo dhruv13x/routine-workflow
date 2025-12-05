@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import fnmatch
 import importlib.util
+import json
 import logging
 import os
 import shlex
@@ -14,11 +15,9 @@ import signal
 import subprocess
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Union
 from logging.handlers import RotatingFileHandler
-
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import Dict, List, Optional, Sequence, Union, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .runner import WorkflowRunner
@@ -32,28 +31,81 @@ def _has_rich() -> bool:
     return importlib.util.find_spec("rich") is not None
 
 
+class JSONFormatter(logging.Formatter):
+    """Format logs as JSON objects."""
+
+    def format(self, record):
+        log_record = {
+            "timestamp": self.formatTime(record, self.datefmt),
+            "level": record.levelname,
+            "message": record.getMessage(),
+            "name": record.name,
+            "path": record.pathname,
+            "lineno": record.lineno,
+        }
+
+        # Include exception info if available
+        if record.exc_info:
+            log_record["exception"] = self.formatException(record.exc_info)
+
+        # Include extra attributes
+        if hasattr(record, "__dict__"):
+            for key, value in record.__dict__.items():
+                if key not in ["args", "asctime", "created", "exc_info", "exc_text", "filename",
+                               "funcName", "levelname", "levelno", "lineno", "module",
+                               "msecs", "message", "msg", "name", "pathname", "process",
+                               "processName", "relativeCreated", "stack_info", "thread", "threadName"]:
+                     log_record[key] = value
+
+        return json.dumps(log_record)
+
+
 def setup_logging(config: WorkflowConfig) -> logging.Logger:
     logger = logging.getLogger("routine_workflow")
-    logger.setLevel(logging.INFO)
+
+    # Set level from config
+    level = getattr(logging, config.log_level.upper(), logging.INFO)
+    logger.setLevel(level)
 
     if logger.handlers:
         logger.warning("Logging handlers already exist; reusing existing setup")
     else:
-        fmt = logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-        fh = RotatingFileHandler(config.log_file, maxBytes=5*1024*1024, backupCount=5, encoding='utf-8')
-        fh.setFormatter(fmt)
+        # File Handler
+        fh = RotatingFileHandler(
+            config.log_file,
+            maxBytes=config.log_rotation_max_bytes,
+            backupCount=config.log_rotation_backup_count,
+            encoding='utf-8'
+        )
+
+        if config.log_format.lower() == "json":
+            fh.setFormatter(JSONFormatter(datefmt='%Y-%m-%d %H:%M:%S'))
+        else:
+            fmt = logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+            fh.setFormatter(fmt)
+
         logger.addHandler(fh)
 
+        # Console Handler
         if _has_rich():
             from rich.logging import RichHandler
-            ch = RichHandler(show_level=True, show_path=False, omit_repeated_times=True)
+            # RichHandler handles formatting beautifully by itself
+            ch = RichHandler(
+                show_level=True,
+                show_path=False,
+                omit_repeated_times=True,
+                level=level
+            )
         else:
             ch = logging.StreamHandler()
+            fmt = logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
             ch.setFormatter(fmt)
+            ch.setLevel(level)
+
         logger.addHandler(ch)
         logger.propagate = False
 
-    logger.info(f"Logging initialized → {str(config.log_file)} (Rich: {_has_rich()})")
+    logger.info(f"Logging initialized → {str(config.log_file)} (Rich: {_has_rich()}, Format: {config.log_format})")
     return logger
 
 

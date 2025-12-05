@@ -195,6 +195,16 @@ def build_parser(defaults: Optional[Dict[str, Any]] = None) -> argparse.Argument
     parser.add_argument('--lock-ttl', type=int, default=int(os.getenv('LOCK_TTL', '3600')),
                         help='Lock eviction TTL in seconds (0=disable; default: 3600)')
 
+    # Logging args
+    parser.add_argument('--log-level', type=str, choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+                        default=get_default('log_level', 'INFO'), help='Logging verbosity level')
+    parser.add_argument('--log-format', type=str, choices=['text', 'json'],
+                        default=get_default('log_format', 'text'), help='Log file format (text or json)')
+    parser.add_argument('--log-rotation-max-bytes', type=int, default=get_default('log_rotation_max_bytes', 5*1024*1024),
+                        help='Max bytes per log file before rotation')
+    parser.add_argument('--log-rotation-backup-count', type=int, default=get_default('log_rotation_backup_count', 5),
+                        help='Number of backup log files to keep')
+
     # Boolean flags need set_defaults if coming from config, because action='store_true' doesn't take 'default' well if we want to override it cleanly
     # Actually, argparse uses default=False for store_true. If we change the default to True via set_defaults, it works.
 
