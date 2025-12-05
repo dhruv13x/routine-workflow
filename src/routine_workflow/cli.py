@@ -12,9 +12,10 @@ import argparse
 import importlib.util
 import textwrap
 from pathlib import Path
-from typing import List, Optional, Set, Dict
+from typing import List, Optional, Set, Dict, Any
 
 from .config import WorkflowConfig
+from .config_loader import load_config
 from .runner import WorkflowRunner, STEP_NAMES
 from .banner import print_logo
 
@@ -148,12 +149,23 @@ def render_rich_help(console, parser: argparse.ArgumentParser) -> None:
     console.print(examples_panel)
 
 
-def build_parser() -> argparse.ArgumentParser:
+def build_parser(defaults: Optional[Dict[str, Any]] = None) -> argparse.ArgumentParser:
     """Build and return the argument parser for the CLI.
 
     This function is separated so tests can import and exercise the
     parser without invoking side effects.
+
+    Args:
+        defaults: Optional dictionary of default values to override parser defaults.
     """
+    from typing import Any  # Local import
+
+    defaults = defaults or {}
+
+    # Helper to get default value with precedence: supplied default -> parser default
+    def get_default(key: str, fallback: Any) -> Any:
+        return defaults.get(key, fallback)
+
     # --- UPDATED Epilog with new alias examples ---
     epilog = textwrap.dedent("""\
         Examples:
@@ -183,22 +195,24 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--lock-ttl', type=int, default=int(os.getenv('LOCK_TTL', '3600')),
                         help='Lock eviction TTL in seconds (0=disable; default: 3600)')
 
+    # Boolean flags need set_defaults if coming from config, because action='store_true' doesn't take 'default' well if we want to override it cleanly
+    # Actually, argparse uses default=False for store_true. If we change the default to True via set_defaults, it works.
+
     parser.add_argument('--fail-on-backup', action='store_true',
-                        default=(os.getenv('FAIL_ON_BACKUP', '0') == '1'),
                         help='Exit if backup step fails')
 
     parser.add_argument('-y', '--yes', action='store_true', help='Auto-confirm prompts')
 
-    parser.add_argument('-d', '--dry-run', dest='dry_run', action='store_true', default=True,
+    parser.add_argument('-d', '--dry-run', dest='dry_run', action='store_true',
                         help='Dry-run mode (default: enabled for safety)')
     parser.add_argument('-nd', '--no-dry-run', dest='dry_run', action='store_false',
                         help='Disable dry-run (perform real execution)')
 
-    parser.add_argument('-w', '--workers', type=int, default=min(8, os.cpu_count() or 4),
+    parser.add_argument('-w', '--workers', type=int, default=get_default('workers', min(8, os.cpu_count() or 4)),
                         help='Parallel workers for autoimport')
-    parser.add_argument('-t', '--workflow-timeout', type=int, default=int(os.getenv('WORKFLOW_TIMEOUT', '0')),
+    parser.add_argument('-t', '--workflow-timeout', type=int, default=get_default('workflow_timeout', int(os.getenv('WORKFLOW_TIMEOUT', '0'))),
                         help='Overall timeout in seconds (0=disable)')
-    parser.add_argument('--exclude-patterns', nargs='*', default=None, help='Optional override exclude patterns')
+    parser.add_argument('--exclude-patterns', nargs='*', default=get_default('exclude_patterns', None), help='Optional override exclude patterns')
     parser.add_argument('--create-dump-run-cmd', nargs=argparse.REMAINDER, default=None,
                         help='Override create-dump run command (base args before dynamic flags)')
 
@@ -208,13 +222,37 @@ def build_parser() -> argparse.ArgumentParser:
         help='Run specific steps or aliases (e.g., "git backup pytest"). Supports custom order/repeats. Defaults to all.'
     )
 
-    parser.add_argument('--test-cov-threshold', type=int, default=85,
+    parser.add_argument('--test-cov-threshold', type=int, default=get_default('test_cov_threshold', 85),
                         help='Pytest coverage threshold (0=disable)')
     parser.add_argument('--git-push', action='store_true', help='Enable git commit/push in step 6 (default: false)')
     parser.add_argument('-es', '--enable-security', action='store_true',
                         help='Enable security scan in step 3.5 (default: false)')
     parser.add_argument('-eda', '--enable-dep-audit', action='store_true',
                         help='Enable dep audit in step 6.5 (default: false)')
+
+    # Apply defaults for boolean flags if they exist in config
+    # We do this by constructing a default map for parser.set_defaults, but since we are building parser here
+    # we can just pass them to set_defaults at the end.
+
+    # Calculate effective defaults
+    bool_defaults = {
+        'fail_on_backup': get_default('fail_on_backup', os.getenv('FAIL_ON_BACKUP', '0') == '1'),
+        'dry_run': get_default('dry_run', True),
+        'git_push': get_default('git_push', os.getenv('GIT_PUSH', '0') == '1'),
+        'enable_security': get_default('enable_security', os.getenv('ENABLE_SECURITY', '0') == '1'),
+        'enable_dep_audit': get_default('enable_dep_audit', os.getenv('ENABLE_DEP_AUDIT', '0') == '1'),
+        'yes': get_default('auto_yes', False), # Map config 'auto_yes' to arg 'yes' if needed, or just 'yes'
+    }
+    # Note: config keys are normalized to snake_case.
+    # 'yes' flag destination is 'yes'. Config might have 'auto_yes'?
+    # Let's assume config uses 'yes' or we map it.
+    # 'auto_yes' is in WorkflowConfig, but argparse dest is 'yes'.
+
+    # If config has 'auto_yes', map it to 'yes'
+    if 'auto_yes' in defaults:
+        bool_defaults['yes'] = defaults['auto_yes']
+
+    parser.set_defaults(**bool_defaults)
     parser.add_argument(
         "--version", action="version", version=f"%(prog)s 9.0.2", help="Show program's version number and exit"
     )
@@ -263,10 +301,28 @@ def validate_steps(steps: Optional[List[str]], available_steps: Set[str], aliase
 
 
 def main() -> int:
-    parser = build_parser()
+    # 1. First pass: Parse only project-root to locate config
+    # We use a throwaway parser to find -p/--project-root without triggering required args errors (if any)
+    pre_parser = argparse.ArgumentParser(add_help=False)
+    pre_parser.add_argument('-p', '--project-root', type=Path, default=Path(os.getenv('PROJECT_ROOT', os.getcwd())))
+
+    cli_args = sys.argv[1:]
+
+    # Check for help early to avoid parsing partial args if help is requested
+    # But we need to build the REAL parser to show help with correct defaults?
+    # Actually, showing help with defaults from config is nice.
+    # So we should try to load config even for help.
+
+    known_args, _ = pre_parser.parse_known_args(cli_args)
+    project_root = known_args.project_root.resolve()
+
+    # 2. Load config from project root
+    file_config = load_config(project_root)
+
+    # 3. Build actual parser with loaded defaults
+    parser = build_parser(defaults=file_config)
 
     # Early --help interception so rich can render a prettier help screen
-    cli_args = sys.argv[1:]
     if len(cli_args) > 0 and cli_args[0] in ('-h', '--help'):
         if _has_rich():
             from rich.console import Console

@@ -72,6 +72,7 @@ This repository follows a `src/` layout and provides a CLI entrypoint, a datacla
 - **⚡ Parallel Execution**: Runs formatting and other tasks in parallel to save time.
 - **✅ Integrated Testing**: Run your `pytest` suite as part of the workflow.
 - **🔒 Concurrency Safe**: A robust file-based lock prevents multiple instances from running simultaneously.
+- **⚙️ Enhanced Configuration**: Configure the workflow via `pyproject.toml` to persist settings.
 - **🔍 Security & Auditing**: Built-in steps for security scanning and dependency auditing.
 - **✍️ Git Integration**: Automatically commit and push a hygiene snapshot after a successful run.
 
