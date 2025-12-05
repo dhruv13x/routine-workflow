@@ -79,6 +79,7 @@ routine-workflow -s reformat clean backup -nd
 ## ✨ Key Features
 
 - **🛡️ Safe by Default**: Ships with `dry-run` enabled to prevent accidental changes.
+- **🧠 Interactive Mode**: Guided wizard to configure steps and options on the fly.
 - **⚙️ Extensible Step Runner**: Run steps in any order, repeat them, or run a custom selection.
 - **🧩 Alias-Driven**: Use intuitive aliases like `reformat`, `clean`, `pytest`, or `audit`.
 - **⚡ Parallel Execution**: Utilizes multi-core processing for supported tasks to save time.
@@ -132,6 +133,7 @@ Below is the complete list of arguments available in `routine-workflow`:
 | `--git-push` | Enable git commit/push in step 6. | `False` |
 | `-es`, `--enable-security`| Enable security scan (step 3.5). | `False` |
 | `-eda`, `--enable-dep-audit`| Enable dependency audit (step 6.5). | `False` |
+| `-i`, `--interactive` | Enter interactive configuration mode. | `False` |
 | `--version` | Show program's version. | `N/A` |
 
 ---
