@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 
 from .config import WorkflowConfig
 from .lock import cleanup_and_exit
+from .errors import CommandNotFoundError
 
 
 def _has_rich() -> bool:
@@ -272,9 +273,16 @@ def run_command(
         }
 
     except FileNotFoundError as e:
+        # If we have a direct command name, try to extract it, or use the first word of command
+        cmd_name = cmd_to_run[0] if isinstance(cmd_to_run, list) and cmd_to_run else str(cmd_to_run)
+
         runner.logger.error(f"Command not found for: {description}")
         if fatal:
-            cleanup_and_exit(runner, 127)
+            # Raise new error type instead of generic exit
+            # cleanup_and_exit is basically a wrapper around sys.exit,
+            # but we want to bubble up the exception to be handled by the runner
+            raise CommandNotFoundError(cmd_name)
+
         return {
             "success": False,
             "stdout": "",
