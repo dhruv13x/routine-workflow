@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import os
 import signal
-from typing import List, Tuple
+import time
+from typing import List, Tuple, Dict
 
 from .config import WorkflowConfig
 from .lock import lock_context, cleanup_and_exit
@@ -23,12 +24,8 @@ from .steps import (
     dep_audit,  # Step 6.5
 )
 from .utils import setup_logging, setup_signal_handlers
-
-
-STEP_NAMES = {
-    "step1", "step2", "step2.5", "step3", "step3.5",
-    "step4", "step5", "step6", "step6.5"
-}
+from .constants import STEP_NAMES
+from .errors import WorkflowError, format_error
 
 
 class WorkflowRunner:
@@ -37,6 +34,7 @@ class WorkflowRunner:
         self.steps = steps
         self._lock_acquired = False
         self._pid_path = None
+        # Must verify config is a WorkflowConfig to avoid TypeError when accessing attrs in setup_logging
         self.logger = setup_logging(config)
         setup_signal_handlers(self)
 
@@ -98,14 +96,37 @@ class WorkflowRunner:
                         return 0
 
                 backup_success = None
+                step_durations: Dict[str, float] = {}
+
+                workflow_start_time = time.time()
+
                 for name, step_func in to_run:
                     self.logger.info(f"Executing {name}...")
-                    if name == "step4":
-                        backup_success = step_func(self)
-                    else:
-                        step_func(self)
 
+                    step_start = time.time()
+                    try:
+                        if name == "step4":
+                            backup_success = step_func(self)
+                        else:
+                            step_func(self)
+                    finally:
+                        duration = time.time() - step_start
+                        step_durations[name] = duration
+
+                workflow_duration = time.time() - workflow_start_time
                 self.logger.info(f"Workflow complete. Executed steps: {', '.join(n for n, _ in to_run)}")
+
+                if self.config.profile:
+                    print("\n" + "=" * 40)
+                    print("📊 Performance Report")
+                    print("=" * 40)
+                    print(f"{'Step':<20} | {'Duration (s)':<15}")
+                    print("-" * 40)
+                    for step, duration in step_durations.items():
+                        print(f"{step:<20} | {duration:.4f}s")
+                    print("-" * 40)
+                    print(f"{'Total Workflow':<20} | {workflow_duration:.4f}s")
+                    print("=" * 40 + "\n")
 
                 if backup_success is not None and not backup_success and self.config.fail_on_backup:
                     self.logger.error("Backup failed; aborting workflow per config")
@@ -115,6 +136,9 @@ class WorkflowRunner:
                 return 0
             except SystemExit:
                 raise
+            except WorkflowError as e:
+                self.logger.error(format_error(e))
+                return 1
             except Exception as e:
                 self.logger.exception(f"Workflow error: {e}")
                 return 1

@@ -39,6 +39,10 @@ def clear_routine_logger():
 @patch("routine_workflow.runner.setup_signal_handlers")
 def test_init(mock_handlers: Mock, mock_logging: Mock, mock_config: WorkflowConfig):
     """Test runner init sets up logging/signals."""
+    # Ensure log_level is a string to avoid TypeError in setup_logging (if it were real)
+    mock_config.log_level = "INFO"
+    mock_config.log_rotation_max_bytes = 1000
+    mock_config.log_rotation_backup_count = 5
     runner = WorkflowRunner(mock_config)
 
     mock_logging.assert_called_once_with(mock_config)
@@ -62,6 +66,9 @@ def test_run_success(mock_lock, mock_dep_audit, mock_commit, mock_generate, mock
     """Test successful run calls all steps."""
     mock_backup.return_value = True
     mock_lock.__enter__.return_value = None
+    mock_config.log_level = "INFO"
+    mock_config.log_rotation_max_bytes = 1000
+    mock_config.log_rotation_backup_count = 5
 
     runner = WorkflowRunner(mock_config)
     with patch.object(runner, 'logger') as mock_log:
@@ -84,6 +91,9 @@ def test_run_success(mock_lock, mock_dep_audit, mock_commit, mock_generate, mock
 def test_run_backup_fail(mock_lock, mock_config: WorkflowConfig):
     """Test abort on backup fail."""
     mock_config.fail_on_backup = True
+    mock_config.log_level = "INFO"
+    mock_config.log_rotation_max_bytes = 1000
+    mock_config.log_rotation_backup_count = 5
 
     runner = WorkflowRunner(mock_config)
     with patch('routine_workflow.runner.delete_old_dumps'), \
@@ -109,6 +119,9 @@ def test_run_backup_fail(mock_lock, mock_config: WorkflowConfig):
 def test_run_exception(mock_lock, mock_config: WorkflowConfig):
     """Test exception handling returns 1."""
     mock_lock.__enter__.return_value = None  # Enter succeeds
+    mock_config.log_level = "INFO"
+    mock_config.log_rotation_max_bytes = 1000
+    mock_config.log_rotation_backup_count = 5
     runner = WorkflowRunner(mock_config)
     with patch('routine_workflow.runner.delete_old_dumps') as mock_delete, \
          patch.object(runner, 'logger') as mock_log:
@@ -142,6 +155,9 @@ def test_workflow_timeout_alarm(
     mock_config.test_cov_threshold = 85
     mock_config.enable_security = False
     mock_config.git_push = False
+    mock_config.log_level = "INFO"
+    mock_config.log_rotation_max_bytes = 1000
+    mock_config.log_rotation_backup_count = 5
     runner = WorkflowRunner(mock_config)
     runner.config.workflow_timeout = 300
 
@@ -179,6 +195,9 @@ def test_run_no_timeout(
     mock_config.test_cov_threshold = 85
     mock_config.enable_security = False
     mock_config.git_push = False
+    mock_config.log_level = "INFO"
+    mock_config.log_rotation_max_bytes = 1000
+    mock_config.log_rotation_backup_count = 5
     runner = WorkflowRunner(mock_config)
 
     result = runner.run()
@@ -210,6 +229,9 @@ def test_run_alarm_setup_exception(
     mock_config.test_cov_threshold = 85
     mock_config.enable_security = False
     mock_config.git_push = False
+    mock_config.log_level = "INFO"
+    mock_config.log_rotation_max_bytes = 1000
+    mock_config.log_rotation_backup_count = 5
     runner = WorkflowRunner(mock_config)
     with patch.object(runner, 'logger') as mock_log:
         mock_alarm.side_effect = Exception('Alarm error')
@@ -241,6 +263,9 @@ def test_run_alarm_teardown_exception(
     mock_config.test_cov_threshold = 85
     mock_config.enable_security = False
     mock_config.git_push = False
+    mock_config.log_level = "INFO"
+    mock_config.log_rotation_max_bytes = 1000
+    mock_config.log_rotation_backup_count = 5
     runner = WorkflowRunner(mock_config)
     with patch.object(runner, 'logger') as mock_log:
         mock_alarm.side_effect = [None, Exception('Teardown error')]  # Setup ok, teardown fails
@@ -271,6 +296,9 @@ def test_run_chdir(
     mock_config.test_cov_threshold = 85
     mock_config.enable_security = False
     mock_config.git_push = False
+    mock_config.log_level = "INFO"
+    mock_config.log_rotation_max_bytes = 1000
+    mock_config.log_rotation_backup_count = 5
     runner = WorkflowRunner(mock_config)
     with patch('os.chdir') as mock_chdir:
         result = runner.run()

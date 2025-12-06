@@ -10,9 +10,10 @@ import pytest
 from pathlib import Path
 
 from routine_workflow.cli import (
-    build_parser, main, validate_steps, _has_rich, render_rich_help,
-    STEP_NAMES, STEP_ALIASES, PRIMARY_ALIASES
+    build_parser, main, validate_steps, _has_rich,
 )
+from routine_workflow.constants import STEP_NAMES, STEP_ALIASES, PRIMARY_ALIASES
+from routine_workflow.help_renderer import render_rich_help
 from routine_workflow.config import WorkflowConfig
 from routine_workflow.runner import WorkflowRunner
 
@@ -141,7 +142,7 @@ def test_main_help_rich(mock_console, mock_has_rich):
     mock_console_instance = Mock()
     mock_console.return_value = mock_console_instance
     mock_render = Mock()
-    with patch('routine_workflow.cli.render_rich_help', mock_render):
+    with patch('routine_workflow.help_renderer.render_rich_help', mock_render):
         with patch.object(sys, 'argv', ['prog', '-h']):
             result = main()
 

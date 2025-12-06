@@ -79,12 +79,15 @@ routine-workflow -s reformat clean backup -nd
 ## ✨ Key Features
 
 - **🛡️ Safe by Default**: Ships with `dry-run` enabled to prevent accidental changes.
+- **🧠 Interactive Mode**: Guided wizard to configure steps and options on the fly.
 - **⚙️ Extensible Step Runner**: Run steps in any order, repeat them, or run a custom selection.
 - **🧩 Alias-Driven**: Use intuitive aliases like `reformat`, `clean`, `pytest`, or `audit`.
 - **⚡ Parallel Execution**: Utilizes multi-core processing for supported tasks to save time.
 - **✅ Integrated Testing**: Run your `pytest` suite as part of the hygiene workflow.
 - **🔒 Concurrency Safe**: Robust file-based locking prevents multiple instances from stepping on each other.
-- **🔍 Security & Auditing**: **God Level** integration of security scans and dependency auditing.
+- **🔍 Security & Auditing**: **God Level** integration of security scans (`bandit`, `safety`) and dependency auditing.
+- **📊 Performance Profiling**: Built-in `--profile` mode to analyze step execution times.
+- **🪝 Pre-commit Ready**: Easily install as a pre-commit hook with `--install-pre-commit`.
 - **📝 Advanced Logging**: JSON output, log rotation, and configurable verbosity levels.
 - **✍️ Git Integration**: Automatically commit and push a hygiene snapshot after a successful run.
 
@@ -107,6 +110,8 @@ You can configure defaults via environment variables or a `.env` file (if suppor
 | `GIT_PUSH` | Set to `1` to enable git push. | `0` |
 | `ENABLE_SECURITY` | Set to `1` to enable security scans. | `0` |
 | `ENABLE_DEP_AUDIT`| Set to `1` to enable dependency audit. | `0` |
+| `LOG_LEVEL` | Logging verbosity (DEBUG, INFO, etc.). | `INFO` |
+| `LOG_FORMAT` | Log format (text or json). | `text` |
 
 ### CLI Arguments
 
@@ -121,6 +126,8 @@ Below is the complete list of arguments available in `routine-workflow`:
 | `--lock-ttl` | Lock eviction TTL in seconds (0=disable). | `3600` |
 | `--log-level` | Logging verbosity (DEBUG, INFO, etc.). | `INFO` |
 | `--log-format` | Log format (text or json). | `text` |
+| `--log-rotation-max-bytes` | Max bytes per log file before rotation. | `5MB` |
+| `--log-rotation-backup-count`| Number of backup log files to keep. | `5` |
 | `--fail-on-backup` | Exit if backup step fails. | `False` |
 | `-y`, `--yes` | Auto-confirm prompts. | `False` |
 | `-d`, `--dry-run` | Dry-run mode (default). | `True` |
@@ -132,6 +139,11 @@ Below is the complete list of arguments available in `routine-workflow`:
 | `--git-push` | Enable git commit/push in step 6. | `False` |
 | `-es`, `--enable-security`| Enable security scan (step 3.5). | `False` |
 | `-eda`, `--enable-dep-audit`| Enable dependency audit (step 6.5). | `False` |
+| `--profile` | Profile execution time of steps. | `False` |
+| `--install-pre-commit` | Install routine-workflow hook. | `False` |
+| `-i`, `--interactive` | Enter interactive configuration mode. | `False` |
+| `--create-dump-run-cmd` | Override create-dump run command. | `None` |
+| `--exclude-patterns` | Override default exclude patterns. | `None` |
 | `--version` | Show program's version. | `N/A` |
 
 ---
@@ -173,12 +185,20 @@ src/routine_workflow/
 
 ## 🗺️ Roadmap
 
-- [x] **Foundation**: Robust CLI, Logging, and Locking mechanisms.
-- [x] **The Standard**: Core hygiene steps (Format, Clean, Backup).
-- [x] **The Ecosystem**: Integration with `pytest`, `ruff`, and `create-dump`.
-- [x] **Security**: Dependency auditing and security scanning.
-- [ ] **The Vision**: Plugin system for custom user-defined steps.
-- [ ] **The Sandbox**: Dockerized ephemeral environments for risky steps.
+**Upcoming vs. Completed Features:**
+
+### ✅ Completed
+- **Core Essentials**: CLI entrypoint, step runner, reformatting (`ruff`, `isort`), cache cleaning, and concurrency locking.
+- **Integration**: `pytest` integration, backup orchestration, and git snapshotting.
+- **Security**: Security scanning (`bandit`, `safety`) and dependency auditing.
+- **Advanced Usage**: Interactive mode, performance profiling, and pre-commit hook generation.
+- **Observability**: Advanced JSON logging and rotation.
+
+### 🔮 Upcoming
+- **Ecosystem**: 3rd party plugins architecture and official Docker image.
+- **Integrations**: Webhook notifications (Slack/Discord) and CI/CD blueprints.
+- **Visionary**: AI-powered code analysis and automated refactoring.
+- **Sandbox**: Gamification and experimental "chaos mode" features.
 
 ---
 

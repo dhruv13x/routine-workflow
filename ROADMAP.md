@@ -4,9 +4,10 @@ A visionary, integration-oriented plan that categorizes features from **"Core Es
 
 ---
 
-## Phase 1: Foundation (Q1)
+## Phase 1: Foundation (CRITICALLY MUST HAVE) (Q1)
 
 **Focus**: Core functionality, stability, security, and basic usage.
+**Instruction**: Prioritize items that are partially built or standard for this type of tool.
 
 - [x] **CLI Entrypoint**: A robust command-line interface for running the workflow.
 - [x] **Extensible Step Runner**: A runner that can execute a series of steps in a defined order.
@@ -19,29 +20,31 @@ A visionary, integration-oriented plan that categorizes features from **"Core Es
 - [x] **Concurrency Safety**: A file-based lock to prevent multiple instances from running simultaneously.
 - [x] **Enhanced Configuration**: Support for `.toml` or `.yaml` configuration files to manage settings.
 - [x] **Comprehensive Unit & Integration Tests**: Increase test coverage to 95%+ and add more edge-case testing.
+- [x] **Advanced Logging System**: Sophisticated logging with JSON output, log rotation, and verbosity levels.
 
 ---
 
-## Phase 2: The Standard (Q2)
+## Phase 2: The Standard (MUST HAVE) (Q2)
 
 **Focus**: Feature parity with top competitors, user experience improvements, and robust error handling.
 
-- [x] **Advanced Logging System**: Implement a more sophisticated, configurable logging system (e.g., with JSON output, log rotation, and verbosity levels).
-- [ ] **Interactive Mode**: An interactive mode to guide users through the workflow steps and options.
-- [ ] **Improved Error Reporting**: More detailed and user-friendly error messages with suggestions for solutions.
-- [ ] **Performance Optimization**: Profile and optimize the performance of the workflow runner and individual steps.
-- [ ] **Pre-commit Hook Integration**: Automatically run `routine-workflow` as a pre-commit hook.
+- [x] **Interactive Mode**: An interactive mode to guide users through the workflow steps and options.
+- [x] **Improved Error Reporting**: More detailed and user-friendly error messages with suggestions for solutions.
+- [x] **Performance Optimization**: Profile and optimize the performance of the workflow runner and individual steps.
+- [x] **Pre-commit Hook Integration**: Automatically run `routine-workflow` as a pre-commit hook.
+- [ ] **Documentation Generator**: Auto-generate documentation from docstrings (e.g., using Sphinx or MkDocs).
 
 ---
 
-## Phase 3: The Ecosystem (Q3)
+## Phase 3: The Ecosystem (INTEGRATION & SHOULD HAVE) (Q3)
 
 **Focus**: Webhooks, API exposure, 3rd party plugins, SDK generation, and extensibility.
 
-- [ ] **Custom Plugins/Steps**: A plugin architecture that allows users to create and share their own workflow steps.
+- [ ] **Custom Plugins Architecture**: A plugin architecture that allows users to create and share their own workflow steps.
 - [ ] **CI/CD Integration Blueprints**: Provide ready-to-use configurations for popular CI/CD platforms like GitHub Actions, GitLab CI, and CircleCI.
+- [ ] **Official Docker Image**: A containerized version of the workflow for consistent execution across environments.
 - [ ] **Webhook Notifications**: Send notifications to services like Slack or Discord upon workflow completion or failure.
-- [ ] **Public API**: Expose the workflow runner and steps via a Python API for programmatic use.
+- [ ] **Public Python API**: Expose the workflow runner and steps via a Python API for programmatic use.
 - [ ] **SDK Generation**: Tools to generate SDKs for other languages to interact with the `routine-workflow` API.
 
 ---
@@ -67,3 +70,4 @@ A visionary, integration-oriented plan that categorizes features from **"Core Es
 - [ ] **Voice-Controlled Workflows**: The ability to run and manage workflows using voice commands.
 - [ ] **Blockchain-based Audit Trail**: A secure, tamper-proof audit trail of all workflow executions using blockchain technology.
 - [ ] **Augmented Reality Dashboard**: An AR dashboard that visualizes the state of the repository and the progress of the workflow.
+- [ ] **Chaos Engineering Mode**: Randomly introduce failures or resource constraints to test the resilience of the workflow and the project.

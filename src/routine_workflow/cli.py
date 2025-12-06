@@ -16,137 +16,15 @@ from typing import List, Optional, Set, Dict, Any
 
 from .config import WorkflowConfig
 from .config_loader import load_config
-from .runner import WorkflowRunner, STEP_NAMES
+from .runner import WorkflowRunner
 from .banner import print_logo
-
-# --- Step Alias Definitions ---
-
-# Maps all accepted aliases to their canonical step ID
-STEP_ALIASES: Dict[str, str] = {
-    "delete_dump": "step1",
-    "delete_dumps": "step1",
-    "reformat": "step2",
-    "reformat_code": "step2",
-    "pytest": "step2.5",
-    "test": "step2.5",
-    "tests": "step2.5",
-    "clean_caches": "step3",
-    "clean": "step3",
-    "security": "step3.5",
-    "scan": "step3.5",
-    "backup": "step4",
-    "create_dump": "step5",
-    "dump": "step5",
-    "dumps": "step5",
-    "git": "step6",
-    "commit": "step6",
-    "audit": "step6.5",
-    "dep_audit": "step6.5",
-}
-
-# For rich help text: maps canonical step ID to its primary alias
-PRIMARY_ALIASES: Dict[str, str] = {
-    "step1": "delete_dump",
-    "step2": "reformat",
-    "step2.5": "pytest",
-    "step3": "clean",
-    "step3.5": "security",
-    "step4": "backup",
-    "step5": "create_dump",
-    "step6": "git",
-    "step6.5": "audit",
-}
-
-# --- End Alias Definitions ---
+from .constants import STEP_NAMES, STEP_ALIASES, PRIMARY_ALIASES
+from .prompt_service import run_interactive_mode
+from .pre_commit_installer import install_pre_commit_hook
 
 
 def _has_rich() -> bool:
     return importlib.util.find_spec("rich") is not None
-
-
-def render_rich_help(console, parser: argparse.ArgumentParser) -> None:
-    """Render a friendly --help using rich panels and tables.
-
-    This mirrors the argparse data but prints it with richer formatting.
-    """
-    from rich.text import Text
-    from rich.table import Table
-    from rich.panel import Panel
-    from rich.markdown import Markdown
-
-    # Usage (bold yellow box)
-    usage = parser.format_usage()
-    console.print(Panel(Text(usage, style="bold yellow"), title="Usage", border_style="yellow"))
-
-    # Description
-    description = parser.description
-    if description:
-        console.print(f"[bold magenta]Description:[/bold magenta] {description}")
-
-    # Options Table (green flags, dim defaults)
-    options_table = Table(title="[bold magenta]Options[/bold magenta]", show_header=True, header_style="bold cyan")
-    options_table.add_column("Flag", style="green", no_wrap=True)
-    options_table.add_column("Description", style="white")
-
-    for action in parser._actions:
-        if getattr(action, 'dest', None) == 'help':  # skip built-in help action
-            continue
-        # Build a succinct flag string (shorts + longs)
-        flag_str = ' '.join(action.option_strings) if action.option_strings else action.dest.upper()
-        desc = action.help or ''
-        if (action.default is not argparse.SUPPRESS) and (action.default is not None) and (not isinstance(action.default, bool)):
-            # Show non-boolean defaults inline (booleans are obvious from presence/absence)
-            default = f" [dim](default: {action.default})[/dim]"
-            desc += default
-        options_table.add_row(flag_str, desc)
-
-    console.print(options_table)
-
-    # --- UPDATED Steps Table (now shows aliases) ---
-    steps_table = Table(title="[bold magenta]Available Workflow Steps[/bold magenta]", show_header=True, header_style="bold cyan")
-    steps_table.add_column("Alias (Name)", style="cyan", no_wrap=True)
-    steps_table.add_column("Step ID", style="dim", no_wrap=True)
-    steps_table.add_column("Description", style="white")
-    
-    step_descriptions = {
-        "step1": "Delete old dumps (prune artifacts)",
-        "step2": "Reformat code (ruff, autoimport, etc.)",
-        "step2.5": "Run pytest suite",
-        "step3": "Clean caches (rm temps)",
-        "step3.5": "Security scan (bandit, safety)",
-        "step4": "Backup project (tar/zip)",
-        "step5": "Generate dumps (create-dump tool)",
-        "step6": "Commit hygiene snapshot to git",
-        "step6.5": "Dependency vulnerability audit (pip-audit)",
-    }
-    
-    for step_id in sorted(STEP_NAMES):
-        alias = PRIMARY_ALIASES.get(step_id, "N/A")
-        desc = step_descriptions.get(step_id, "Custom/undefined step")
-        steps_table.add_row(alias, step_id, desc)
-
-    console.print(steps_table)
-    # --- End UPDATED Steps Table ---
-
-    # Examples Panel (render the parser epilog as Markdown code blocks)
-    epilog_lines = [line.rstrip() for line in (parser.epilog or "").splitlines() if line.strip()]
-    examples_content = "# Usage Examples\n"
-    for line in epilog_lines:
-        if line.startswith('#') or line.lower().startswith('examples:'):
-            continue
-        # --- FIXED: Use line.strip() to handle leading whitespace ---
-        if line.strip().startswith('routine-workflow'):
-            examples_content += f"- ```bash\n{line.strip()}\n```\n"
-        else:
-            examples_content += f"{line}\n"
-
-    examples_panel = Panel(
-        Markdown(examples_content),
-        title="[bold green]Quick Starts[/bold green]",
-        border_style="green",
-        expand=False,
-    )
-    console.print(examples_panel)
 
 
 def build_parser(defaults: Optional[Dict[str, Any]] = None) -> argparse.ArgumentParser:
@@ -239,6 +117,15 @@ def build_parser(defaults: Optional[Dict[str, Any]] = None) -> argparse.Argument
                         help='Enable security scan in step 3.5 (default: false)')
     parser.add_argument('-eda', '--enable-dep-audit', action='store_true',
                         help='Enable dep audit in step 6.5 (default: false)')
+
+    parser.add_argument('--profile', action='store_true',
+                        help='Profile execution time of steps and workflow')
+
+    parser.add_argument('--install-pre-commit', action='store_true',
+                        help='Install routine-workflow as a pre-commit hook')
+
+    parser.add_argument('-i', '--interactive', action='store_true',
+                        help='Enter interactive configuration mode')
 
     # Apply defaults for boolean flags if they exist in config
     # We do this by constructing a default map for parser.set_defaults, but since we are building parser here
@@ -336,6 +223,7 @@ def main() -> int:
     if len(cli_args) > 0 and cli_args[0] in ('-h', '--help'):
         if _has_rich():
             from rich.console import Console
+            from .help_renderer import render_rich_help
 
             console = Console()
             render_rich_help(console, parser)
@@ -346,6 +234,13 @@ def main() -> int:
     print_logo()
     # Normal parse
     args = parser.parse_args(cli_args)
+
+    if args.install_pre_commit:
+        install_pre_commit_hook(project_root)
+        return 0
+
+    if args.interactive:
+        args = run_interactive_mode(args)
 
     if args.dry_run:
         print("🛡️  Safety mode: Dry-run enabled (use -nd/--no-dry-run for real execution)")
