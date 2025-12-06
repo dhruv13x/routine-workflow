@@ -86,6 +86,8 @@ routine-workflow -s reformat clean backup -nd
 - **✅ Integrated Testing**: Run your `pytest` suite as part of the hygiene workflow.
 - **🔒 Concurrency Safe**: Robust file-based locking prevents multiple instances from stepping on each other.
 - **🔍 Security & Auditing**: **God Level** integration of security scans and dependency auditing.
+- **📊 Performance Profiling**: Built-in `--profile` mode to analyze step execution times.
+- **🪝 Pre-commit Ready**: Easily install as a pre-commit hook with `--install-pre-commit`.
 - **📝 Advanced Logging**: JSON output, log rotation, and configurable verbosity levels.
 - **✍️ Git Integration**: Automatically commit and push a hygiene snapshot after a successful run.
 
@@ -133,6 +135,8 @@ Below is the complete list of arguments available in `routine-workflow`:
 | `--git-push` | Enable git commit/push in step 6. | `False` |
 | `-es`, `--enable-security`| Enable security scan (step 3.5). | `False` |
 | `-eda`, `--enable-dep-audit`| Enable dependency audit (step 6.5). | `False` |
+| `--profile` | Profile execution time of steps. | `False` |
+| `--install-pre-commit` | Install routine-workflow hook. | `False` |
 | `-i`, `--interactive` | Enter interactive configuration mode. | `False` |
 | `--version` | Show program's version. | `N/A` |
 

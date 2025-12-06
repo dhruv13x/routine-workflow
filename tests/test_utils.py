@@ -317,16 +317,19 @@ def test_run_command_fatal_timeout(mock_run, mock_cleanup, mock_runner: Mock):
     mock_cleanup.assert_called_once_with(mock_runner, 124)
 
 
+from routine_workflow.errors import CommandNotFoundError
+
 @patch("routine_workflow.utils.cleanup_and_exit")
 @patch("routine_workflow.utils.subprocess.run")
 def test_run_command_fatal_filenotfound(mock_run, mock_cleanup, mock_runner: Mock):
-    """Test fatal FileNotFoundError triggers cleanup."""
+    """Test fatal FileNotFoundError triggers CommandNotFoundError."""
     mock_run.side_effect = FileNotFoundError("cmd not found")
 
-    result = run_command(mock_runner, "test", ["nonexistent"], fatal=True, timeout=10)
+    with pytest.raises(CommandNotFoundError):
+        run_command(mock_runner, "test", ["nonexistent"], fatal=True, timeout=10)
 
-    assert result["success"] is False
-    mock_cleanup.assert_called_once_with(mock_runner, 127)
+    # cleanup_and_exit is NOT called because we raise specific exception
+    mock_cleanup.assert_not_called()
 
 
 @patch("routine_workflow.utils.cleanup_and_exit")

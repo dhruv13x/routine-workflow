@@ -30,8 +30,8 @@ A visionary, integration-oriented plan that categorizes features from **"Core Es
 
 - [x] **Interactive Mode**: An interactive mode to guide users through the workflow steps and options.
 - [x] **Improved Error Reporting**: More detailed and user-friendly error messages with suggestions for solutions.
-- [ ] **Performance Optimization**: Profile and optimize the performance of the workflow runner and individual steps.
-- [ ] **Pre-commit Hook Integration**: Automatically run `routine-workflow` as a pre-commit hook.
+- [x] **Performance Optimization**: Profile and optimize the performance of the workflow runner and individual steps.
+- [x] **Pre-commit Hook Integration**: Automatically run `routine-workflow` as a pre-commit hook.
 - [ ] **Documentation Generator**: Auto-generate documentation from docstrings (e.g., using Sphinx or MkDocs).
 
 ---

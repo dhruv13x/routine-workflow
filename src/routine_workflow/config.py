@@ -46,6 +46,7 @@ class WorkflowConfig:
     git_push: bool = False
     enable_security: bool = False
     enable_dep_audit: bool = False
+    profile: bool = False
 
     # logging
     log_level: str = "INFO"
@@ -87,6 +88,8 @@ class WorkflowConfig:
         git_push = os.getenv('GIT_PUSH', '0') == '1' or args.git_push
         lock_ttl = args.lock_ttl if hasattr(args, 'lock_ttl') else int(os.getenv('LOCK_TTL', '3600'))
 
+        profile = getattr(args, 'profile', False)
+
         # Logging from args or env
         log_level = getattr(args, 'log_level', os.getenv('LOG_LEVEL', 'INFO'))
         log_format = getattr(args, 'log_format', os.getenv('LOG_FORMAT', 'text'))
@@ -111,6 +114,7 @@ class WorkflowConfig:
             git_push=git_push,
             enable_security=enable_security,
             enable_dep_audit=enable_dep_audit,
+            profile=profile,
             log_level=log_level,
             log_format=log_format,
             log_rotation_max_bytes=log_rotation_max_bytes,

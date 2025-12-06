@@ -28,9 +28,10 @@ def test_backup_no_projectclone(mock_cmd_exists, mock_runner: Mock):
     mock_runner.logger.warning.assert_called_with('projectclone not found - skipping backup')
 
 
+@patch('routine_workflow.backup_service.cmd_exists', return_value=True)
 @patch('routine_workflow.backup_service.run_command')
 @patch('routine_workflow.backup_service.datetime')
-def test_backup_dry_run(mock_datetime, mock_run, mock_runner: Mock):
+def test_backup_dry_run(mock_datetime, mock_run, mock_exists, mock_runner: Mock):
     """Test dry-run uses --dry-run flag."""
     mock_datetime.datetime.now.return_value.strftime.return_value = '20251031_180000_routine'
     mock_runner.config.dry_run = True
@@ -48,9 +49,10 @@ def test_backup_dry_run(mock_datetime, mock_run, mock_runner: Mock):
     assert result is True
 
 
+@patch('routine_workflow.backup_service.cmd_exists', return_value=True)
 @patch('routine_workflow.backup_service.run_command')
 @patch('routine_workflow.backup_service.datetime')
-def test_backup_auto_yes(mock_datetime, mock_run, mock_runner: Mock):
+def test_backup_auto_yes(mock_datetime, mock_run, mock_exists, mock_runner: Mock):
     """Test auto-yes uses --yes flag."""
     mock_datetime.datetime.now.return_value.strftime.return_value = '20251031_180000_routine'
     mock_runner.config.dry_run = False
@@ -70,9 +72,10 @@ def test_backup_auto_yes(mock_datetime, mock_run, mock_runner: Mock):
     assert result is True
 
 
+@patch('routine_workflow.backup_service.cmd_exists', return_value=True)
 @patch('routine_workflow.backup_service.run_command')
 @patch('routine_workflow.backup_service.datetime')
-def test_backup_success_noninteractive(mock_datetime, mock_run, mock_runner: Mock):
+def test_backup_success_noninteractive(mock_datetime, mock_run, mock_exists, mock_runner: Mock):
     """Test success handling."""
     mock_datetime.datetime.now.return_value.strftime.return_value = '20251031_180000_routine'
     mock_runner.config.dry_run = False
@@ -87,9 +90,10 @@ def test_backup_success_noninteractive(mock_datetime, mock_run, mock_runner: Moc
     mock_runner.logger.info.assert_called_with('Backup completed successfully')
 
 
+@patch('routine_workflow.backup_service.cmd_exists', return_value=True)
 @patch('routine_workflow.backup_service.run_command')
 @patch('routine_workflow.backup_service.datetime')
-def test_backup_failure_no_fail_on(mock_datetime, mock_run, mock_runner: Mock):
+def test_backup_failure_no_fail_on(mock_datetime, mock_run, mock_exists, mock_runner: Mock):
     """Test failure without fail_on_backup continues."""
     mock_datetime.datetime.now.return_value.strftime.return_value = '20251031_180000_routine'
     mock_runner.config.dry_run = False
@@ -105,9 +109,10 @@ def test_backup_failure_no_fail_on(mock_datetime, mock_run, mock_runner: Mock):
     mock_runner.logger.warning.assert_called_with('Backup failed or skipped')
 
 
+@patch('routine_workflow.backup_service.cmd_exists', return_value=True)
 @patch('routine_workflow.backup_service.run_command')
 @patch('routine_workflow.backup_service.datetime')
-def test_backup_fail_abort(mock_datetime, mock_run, mock_runner: Mock):
+def test_backup_fail_abort(mock_datetime, mock_run, mock_exists, mock_runner: Mock):
     """Test abort on fail with flag."""
     mock_datetime.datetime.now.return_value.strftime.return_value = '20251031_180000_routine'
     mock_runner.config.dry_run = False

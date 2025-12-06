@@ -20,6 +20,7 @@ from .runner import WorkflowRunner
 from .banner import print_logo
 from .constants import STEP_NAMES, STEP_ALIASES, PRIMARY_ALIASES
 from .prompt_service import run_interactive_mode
+from .pre_commit_installer import install_pre_commit_hook
 
 
 def _has_rich() -> bool:
@@ -116,6 +117,12 @@ def build_parser(defaults: Optional[Dict[str, Any]] = None) -> argparse.Argument
                         help='Enable security scan in step 3.5 (default: false)')
     parser.add_argument('-eda', '--enable-dep-audit', action='store_true',
                         help='Enable dep audit in step 6.5 (default: false)')
+
+    parser.add_argument('--profile', action='store_true',
+                        help='Profile execution time of steps and workflow')
+
+    parser.add_argument('--install-pre-commit', action='store_true',
+                        help='Install routine-workflow as a pre-commit hook')
 
     parser.add_argument('-i', '--interactive', action='store_true',
                         help='Enter interactive configuration mode')
@@ -227,6 +234,10 @@ def main() -> int:
     print_logo()
     # Normal parse
     args = parser.parse_args(cli_args)
+
+    if args.install_pre_commit:
+        install_pre_commit_hook(project_root)
+        return 0
 
     if args.interactive:
         args = run_interactive_mode(args)

@@ -29,8 +29,9 @@ def test_clean_caches_no_pypurge(mock_cmd_exists, mock_runner: Mock):
     mock_runner.logger.warning.assert_called_with('pypurge not found - skipping cleanup')
 
 
+@patch('routine_workflow.steps.step3.cmd_exists', return_value=True)
 @patch('routine_workflow.steps.step3.run_command')
-def test_clean_caches_exists(mock_run, mock_runner: Mock):
+def test_clean_caches_exists(mock_run, mock_exists, mock_runner: Mock):
     """Test runs pypurge if exists."""
     mock_runner.config.project_root = Path('/tmp/project')
     mock_runner.config.dry_run = False
@@ -47,8 +48,9 @@ def test_clean_caches_exists(mock_run, mock_runner: Mock):
     mock_runner.logger.info.assert_called_with('Cache cleanup completed successfully')
 
 
+@patch('routine_workflow.steps.step3.cmd_exists', return_value=True)
 @patch('routine_workflow.steps.step3.run_command')
-def test_clean_caches_dry_run(mock_run, mock_runner: Mock):
+def test_clean_caches_dry_run(mock_run, mock_exists, mock_runner: Mock):
     """Test dry-run uses -p flag."""
     mock_runner.config.project_root = Path('/tmp/project')
     mock_runner.config.dry_run = True
@@ -65,8 +67,9 @@ def test_clean_caches_dry_run(mock_run, mock_runner: Mock):
     mock_runner.logger.info.assert_called_with('Cache cleanup completed successfully')
 
 
+@patch('routine_workflow.steps.step3.cmd_exists', return_value=True)
 @patch('routine_workflow.steps.step3.run_command')
-def test_clean_caches_auto_yes(mock_run, mock_runner: Mock):
+def test_clean_caches_auto_yes(mock_run, mock_exists, mock_runner: Mock):
     """Test auto-yes ensures -y flag."""
     mock_runner.config.project_root = Path('/tmp/project')
     mock_runner.config.dry_run = False
@@ -92,8 +95,9 @@ def test_clean_caches_auto_yes(mock_run, mock_runner: Mock):
     )
 
 
+@patch('routine_workflow.steps.step3.cmd_exists', return_value=True)
 @patch('routine_workflow.steps.step3.run_command')
-def test_clean_caches_failure(mock_run, mock_runner: Mock):
+def test_clean_caches_failure(mock_run, mock_exists, mock_runner: Mock):
     """Test failure handling."""
     mock_runner.config.project_root = Path('/tmp/project')
     mock_runner.config.dry_run = False
