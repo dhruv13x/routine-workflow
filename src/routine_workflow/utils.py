@@ -156,6 +156,14 @@ def run_command(
 
     runner.logger.info(f">>> {description}: {cmd_to_run}")
 
+    if runner.config.dry_run:
+        runner.logger.info(f"DRY RUN: Would execute: {description} (cmd: {cmd_to_run})")
+        return {
+            "success": True,
+            "stdout": "DRY RUN: Command not executed",
+            "stderr": ""
+        }
+
     stdout = ""
     stderr = ""
     returncode = 0

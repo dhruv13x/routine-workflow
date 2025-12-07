@@ -134,6 +134,42 @@ def test_setup_logging_plain(mock_config: WorkflowConfig):
     assert isinstance(sh, StreamHandler)
 
 
+@patch.dict(sys.modules, {'rich.logging': MagicMock()})
+@patch('routine_workflow.utils._has_rich', return_value=True)
+def test_setup_logging_rich_format(mock_has_rich, mock_config: WorkflowConfig):
+    """Test setup_logging when rich is available."""
+    # Ensure a fresh logger instance for this test
+    logger = logging.getLogger("routine_workflow")
+    logger.handlers.clear() # Ensure a fresh logger instance for this test
+
+    # Now retrieve the mocked RichHandler from the mocked rich.logging module
+    MockRichHandler = sys.modules['rich.logging'].RichHandler
+    
+    # Create a spec-compliant mock for RichHandler's instance
+    mock_handler_instance = MagicMock(spec=logging.StreamHandler)
+    # Crucially, set the 'level' attribute on the mock instance itself
+    mock_handler_instance.level = getattr(logging, mock_config.log_level.upper(), logging.INFO)
+    mock_handler_instance.setLevel.return_value = None # Mock setLevel to do nothing
+
+    # Configure the mock RichHandler class to return our specific mock instance
+    MockRichHandler.return_value = mock_handler_instance
+    
+    logger = setup_logging(mock_config) # Call setup_logging only once
+
+    assert len(logger.handlers) == 2 # File handler and Rich handler
+    # Verify RichHandler was called to create an instance
+    MockRichHandler.assert_called_once_with(
+        show_level=True,
+        show_path=False,
+        omit_repeated_times=True
+    )
+    # Verify setLevel was called on the instance
+    mock_handler_instance.setLevel.assert_called_once_with(getattr(logging, mock_config.log_level.upper(), logging.INFO))
+    # Verify our specific mock instance was added to the logger's handlers
+    assert any(h is mock_handler_instance for h in logger.handlers)
+
+
+
 # --- run_command Tests ---
 @patch("routine_workflow.utils.subprocess.Popen")
 @patch('routine_workflow.utils._has_rich', return_value=False)
