@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "routine-workflow"
-version = "9.0.3"
+version = "10.0.0"
 description = "Automated routine workflow runner for repository hygiene, backups, and dumps orchestration and much more."
 readme = "README.md"
 license = { text = "MIT" }
